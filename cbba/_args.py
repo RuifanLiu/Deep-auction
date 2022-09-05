@@ -8,8 +8,8 @@ NO_CUDA = False
 SEED = None
 
 PROBLEM = "svrptw"
-CUST_RANGE = (20, 21, 10) #(10,101,10)
-VEH_RANGE = (2, 3, 1) #(2,11,1)
+CUST_RANGE = (10,101)
+VEH_RANGE = (2,11)
 VALID_DATASET = 'data/'
 ITERATION = 10
 
@@ -66,6 +66,7 @@ def parse_args(argv = None):
 
     group = parser.add_argument_group("Testing parameters")
     group.add_argument("--valid-batch-size", type = int, default = VALID_BATCH_SIZE)
+    group.add_argument("--output-dir", "-o", type = str, default = OUTPUT_DIR)
 
     args = parser.parse_args(argv)
     if args.config_file is not None:

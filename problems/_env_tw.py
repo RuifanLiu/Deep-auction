@@ -5,7 +5,7 @@ class VRPTW_Environment(VRP_Environment):
     VEH_STATE_SIZE = 5 # [loc, cap, speed, time]
     CUST_FEAT_SIZE = 7 # [loc, dem, rew, rdys, ends, durs]
 
-    def __init__(self, data, vehs, nodes = None, cust_mask = None,
+    def __init__(self, data, vehs = None, nodes = None, cust_mask = None,
             pending_cost = 2, late_discount = 0.9):
         super().__init__(data, vehs, nodes, cust_mask, pending_cost)
         self.late_discount = late_discount

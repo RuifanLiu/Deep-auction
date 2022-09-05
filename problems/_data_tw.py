@@ -67,6 +67,7 @@ class VRPTW_Dataset(VRP_Dataset):
             cust_mask = None
         else:
             counts = torch.randint(min_cust_count+1, cust_count+2, (batch_size, 1), dtype = torch.int64)
+            # counts = torch.randint(5, 6, (batch_size, 1), dtype = torch.int64)
             cust_mask = torch.arange(cust_count+1).expand(batch_size, -1) > counts
             nodes[cust_mask] = 0
 

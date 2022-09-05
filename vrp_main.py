@@ -20,12 +20,13 @@ import time
 import os
 from itertools import chain
 
-def train_value_epoch(args, data, Environment, env_params, bl_wrapped_learner, value_bl_wrapped_learner, optim, device, ep):
-    bl_wrapped_learner.learner.eval()
-    value_bl_wrapped_learner.learner.train()
+def train_value_epoch(args, data, Environment, env_params, policy_bl_wrapped_learner, bl_wrapped_learner, optim, device, ep):
+    policy_bl_wrapped_learner.learner.eval()
+    bl_wrapped_learner.learner.train()
     loader = DataLoader(data, args.batch_size, True)
     
     ep_loss = 0
+    ep_prob = 0
     ep_val = 0
     ep_bl = 0
     ep_norm = 0
@@ -37,12 +38,12 @@ def train_value_epoch(args, data, Environment, env_params, bl_wrapped_learner, v
                 vehs, custs, mask = minibatch[0].to(device), minibatch[1].to(device), minibatch[2].to(device)
 
             dyna = Environment(data, vehs, custs, mask, *env_params)
-            actions, logps, rewards, _ = bl_wrapped_learner(dyna)
-            _, _, _, bl_vals = value_bl_wrapped_learner(dyna)
+            actions, logps, rewards, _ = policy_bl_wrapped_learner(dyna)
+            _, _, _, bl_vals = bl_wrapped_learner(dyna)
             loss = value_loss(rewards, bl_vals)
             prob = torch.stack(logps).sum(0).exp().mean()
             val = rewards.mean()            
-            bl = bl_vals[0].mean()
+            bl = bl_vals.mean()
 
             optim.zero_grad()
             loss.backward()
@@ -82,12 +83,10 @@ def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, 
             dyna = Environment(data, vehs, custs, mask, *env_params)
             actions, logps, rewards, bl_vals = bl_wrapped_learner(dyna)
             loss = reinforce_loss(logps, rewards, bl_vals)
-
             prob = torch.stack(logps).sum(0).exp().mean()
             # val = torch.stack(rewards).sum(0).mean()
             val = rewards.mean()
-            
-            bl = bl_vals[0].mean()
+            bl = bl_vals.mean()
 
             optim.zero_grad()
             loss.backward()
@@ -108,23 +107,24 @@ def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, 
     return tuple(stat / args.iter_count for stat in (ep_loss, ep_prob, ep_val, ep_bl, ep_norm))
 
 
-def test_epoch(args, test_env, learner, ref_costs):
+def test_epoch(args, test_env, learner, bl_wrapped_learner, ref_costs):
     learner.eval()
     if args.problem_type[0] == "s":
         costs = test_env.nodes.new_zeros(test_env.minibatch_size)
         for _ in range(100):
-            _, _, rewards = learner(test_env)
-            costs -= torch.stack(rewards).sum(0).squeeze(-1)
+            # _, _, rewards = learner(test_env)
+            actions, logps, rewards, bl_vals = bl_wrapped_learner(test_env)
+            costs -= rewards.mean() #torch.stack(rewards).sum(0).squeeze(-1)
         costs = costs / 100
     else:
         _, _, rs = learner(test_env)
         costs = -torch.stack(rs).sum(dim = 0).squeeze(-1)
     mean = costs.mean()
     std = costs.std()
-    gap = (costs.to(ref_costs.device) / ref_costs - 1).mean()
+    gap = (costs.to(ref_costs.device) / ref_costs - 1).mean() if ref_costs is not None else 0
 
     print("Cost on test dataset: {:5.2f} +- {:5.2f} ({:.2%})".format(mean, std, gap))
-    return mean.item(), std.item(), gap.item()
+    return mean.item(), std.item(), gap
 
 
 def main(args):
@@ -169,6 +169,8 @@ def main(args):
             *gen_params
             )
     train_data.normalize()
+    # out_dir = "train_data/s_cvrptw_n1-100m1"
+    # os.save(train_data, os.path.join(out_dir, "norm_data.pyth"))
     verbose_print("Done.")
 
     # TEST DATA AND COST REFERENCE
@@ -281,9 +283,9 @@ def main(args):
     if args.resume_state is None:
         start_ep = 0
     else:
-        start_ep = load_checkpoint(args, learner, optim, baseline, lr_sched)
+        start_ep = load_checkpoint(args, learner, baseline, lr_sched)
 
-    # SEPARATE CRITIC MODEL FOR VALUE TRAINING MODE
+    # SEPARATE POLICY MODEL FOR VALUE TRAINING MODE
     if args.train_mode == 'value':
         verbose_print("Initialize the value network separately...",
             end = " ", flush = True)
@@ -291,7 +293,7 @@ def main(args):
             verbose_print("Initializing attention model...",
                 end = " ", flush = True)
             # ATTENTION MODEL
-            value_learner = AttentionLearner(
+            policy_learner = AttentionLearner(
                     Dataset.CUST_FEAT_SIZE,
                     Environment.VEH_STATE_SIZE,
                     args.model_size,
@@ -300,27 +302,21 @@ def main(args):
                     args.ff_size,
                     args.tanh_xplor
                     )
-            value_learner.to(dev)
+            policy_learner.to(dev)
             verbose_print("Done.")
             # BASELINE
             verbose_print("Initializing '{}' baseline...".format(
                 args.baseline_type),
                 end = " ", flush = True)
-            value_baseline = CriticBaseline(learner, args.customers_count, args.critic_use_qval, args.loss_use_cumul)
+            policy_baseline = CriticBaseline(policy_learner, args.customers_count, args.critic_use_qval, args.loss_use_cumul)
+            policy_baseline.to(dev)
+            verbose_print("Done.")
         else: raise ValueError("{} baseline don't support value training mode".format(args.baseline_type))
         # CHECKPOINTING
         if args.resume_state is None:
             start_ep = 0
         else:
-            start_ep = load_checkpoint(args, value_learner, optim, value_baseline, lr_sched)
-        # ADAM OPTIMIZER
-        verbose_print("Initializing Adam optimizer...",
-            end = " ", flush = True)
-        optim = Adam([
-                {"params": value_learner.parameters(), "lr": args.learning_rate},
-                {"params": value_baseline.parameters(), "lr": args.critic_rate}
-                ])
-        verbose_print("Done.")
+            start_ep = load_checkpoint(args, policy_learner, policy_baseline)
 
 
     verbose_print("Running...")
@@ -331,11 +327,11 @@ def main(args):
             if args.train_mode == 'policy':
                 train_stats.append( train_epoch(args, train_data, Environment, env_params, baseline, optim, dev, ep) )
             elif args.train_mode == 'value':
-                train_stats.append( train_value_epoch(args, train_data, Environment, env_params, learner, value_baseline, optim, dev, ep) )
+                train_stats.append( train_value_epoch(args, train_data, Environment, env_params, policy_baseline, baseline, optim, dev, ep) )
             else:
                 raise ValueError(f'do not support training model: {args.train_mode}')
-            if ref_routes is not None:
-                test_stats.append( test_epoch(args, test_env, learner, ref_costs) )
+
+            test_stats.append( test_epoch(args, test_env, learner, baseline, None) )
 
             if args.rate_decay is not None:
                 lr_sched.step()

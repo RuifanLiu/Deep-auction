@@ -56,18 +56,24 @@ def _padding_with_zeros(custs, pad_size):
 
 class PaddedData(Dataset):
 
-    def __init__(self, vehs, nodes, padding_size=None):
+    def __init__(self, vehs, nodes, cust_mask = None, padding_size=None):
         self.vehs = vehs
-
-        self.batch_size, self.cust_count, d = nodes.size()
-        self.padding_size = padding_size if padding_size is not None else self.cust_count
-        if self.cust_count > self.padding_size:
-            raise ValueError('the paddding size shall be larger than data')
+        self.nodes = nodes
+        self.cust_mask = cust_mask
         
-        self._padded_nodes = torch.zeros(self.batch_size, self.padding_size, d)
-        self._padded_nodes[:,:self.cust_count,:] = nodes
-        self.nodes = self._padded_nodes
-        self.cust_mask = torch.arange(self.padding_size).expand(self.batch_size,-1) > (self.cust_count - 1)
+        self.batch_size, self.cust_count, d = nodes.size()
+        if padding_size is not None:
+            self.padding_size = padding_size
+            if self.cust_count > self.padding_size:
+                raise ValueError('the paddding size shall be larger than data')
+            self._padded_nodes = torch.zeros(self.batch_size, self.padding_size, d)
+            self._padded_nodes[:,:self.cust_count,:] = nodes
+            self.pad_cust_mask = torch.arange(self.padding_size).expand(self.batch_size,-1) > (self.cust_count - 1)
+            self.nodes = self._padded_nodes
+            if cust_mask is not None:
+                self.cust_mask = cust_mask | self.pad_cust_mask
+            else:
+                self.cust_mask = self.pad_cust_mask
 
     def __len__(self):
         return self.batch_size

@@ -9,28 +9,38 @@ import numpy as np
 import time
 from cbba._data_util import data_padding, data_padding_zeros
 from cbba._data_util import PaddedData, _padding_with_zeros
+from routing_model.utils._misc import _pad_with_zeros
 
 
 PAD_SIZE = 100
 
-def det_reward_func(det_environment, custs, veh, task_list):
-    dyna = det_environment(None, veh, custs)
-    task_list = task_list + [0]
+def det_reward_func(Environment, custs, veh, task_list):
+    batch_size, nodes_count, d  = custs.size()
+    mask = custs.new_ones((batch_size, nodes_count), dtype = torch.bool)\
+        .scatter(1,torch.tensor([0]+list(task_list))[None,:],0)
+    data = PaddedData(vehs=veh[:,None,:], nodes=custs, cust_mask=mask)
+    dyna = Environment(data)
+    dyna.reset()
+    task_list = _pad_with_zeros(task_list)
     rewards = 0
     while not dyna.done:
-        cust_idx = dyna.nodes.new_tensor([next(task_list)], dtype=torch.int64)
+        cust_idx = dyna.nodes.new_tensor([[next(task_list)]], dtype=torch.int64)
         rewards += dyna.step(cust_idx)
     return rewards, None
         
 def sample_reward_func(Environment, custs, veh, task_list, sample=100):
-    dyna = Environment(None, veh, custs) 
-    task_list = task_list + [0]  
+    batch_size, nodes_count, d  = custs.size()
+    mask = custs.new_ones((batch_size, nodes_count), dtype = torch.bool)\
+        .scatter(1,torch.tensor([0]+list(task_list))[None,:],0)
+    data = PaddedData(vehs=veh[:,None,:], nodes=custs, cust_mask= mask)
+    dyna = Environment(data)
+    task_list = _pad_with_zeros(task_list)  
     rewards = 0 
     for n_sample in range(sample):
         dyna.reset()
         rew = []
         while not dyna.done:
-            cust_idx = dyna.nodes.new_tensor([next(task_list)], dtype=torch.int64)
+            cust_idx = dyna.nodes.new_tensor([[next(task_list)]], dtype=torch.int64)
             rew.append( dyna.step(cust_idx) )
         rewards += torch.stack(rew).sum(dim = 0).squeeze(-1)
     return rewards/sample, None
@@ -47,7 +57,6 @@ def Scoring_CalcScore_Original(Environment, n, custs, vehs, taskCurr, taskPrev, 
         
     # print('oldTaskList:',oldTaskList)
     # print('newTaskList:',newTaskList)
-    # print('output_reward_old:',output_reward_old)
     # print('output_reward_new:',output_reward_new)
     # print('\n')
    

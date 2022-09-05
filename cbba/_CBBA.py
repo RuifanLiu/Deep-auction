@@ -79,7 +79,7 @@ class CBBA():
             else:
                 #% Maintain loop
                 T = T + 1
-                print(T)
+                # print(T)
         # Map path and bundle values to actual task indices
         # for n in range(self.CBBA_Params_N):
         #     for m in range(self.CBBA_Params_MAXDEPTH):
@@ -100,7 +100,7 @@ class CBBA():
         # Compute the total score of the CBBA assignment
         Total_Score = 0
         for n in range(self.CBBA_Params_N):
-            print(self.CBBA_Data[n]['scores'])
+            # print(self.CBBA_Data[n]['scores'])
             for m in range(self.CBBA_Params_MAXDEPTH):
                 if self.CBBA_Data[n]['bundle'][m]>-1:
                     Total_Score = Total_Score + self.CBBA_Data[n]['scores'][m]
@@ -427,7 +427,7 @@ class CBBA():
                             taskNext = CBBA_Data['path'][j:L[0][0]].tolist()
                             timeNext = CBBA_Data['times'][j:L[0][0]].tolist()
                         
-                        score_old, score_new, minStart, maxStart = Scoring_CalcScore_Original(self.env, self.custs, self.vehs[n], m, 
+                        score_old, score_new, minStart, maxStart = Scoring_CalcScore_Original(self.env, n, self.custs, self.vehs, m, 
                                                                                  taskPrev,timePrev,
                                                                                  taskNext,timeNext,
                                                                                  robust_greedy = robust_greedy)

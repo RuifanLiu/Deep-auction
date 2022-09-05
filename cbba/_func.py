@@ -5,10 +5,10 @@ from itertools import  zip_longest
 def export_cbba_rewards(output_dir, header, cbba_stats, dnn_cbba_stats):
     fpath = os.path.join(output_dir, "cbba_result.csv")
     with open(fpath, 'a') as f:
-        f.write( (' '.join("{: >16}" for _ in range(9)) + '\n').format(
+        f.write( (' '.join("{: >16}" for _ in range(6)) + '\n').format(
             "#(AGT,TASK)", "#DNN_EXP", "#DNN_ACT", "#CBBA_EXP", "#CBBA_ACT", "#CBBA_ACT_DRL"
             ))
-        for (hdr, cbba, dnn_cbba) in enumerate(zip_longest(header, cbba_stats, dnn_cbba_stats, fillvalue=float('nan')), start = start_ep):
+        for (hdr, cbba, dnn_cbba) in enumerate(zip_longest(header, cbba_stats, dnn_cbba_stats, fillvalue=float('nan'))):
                 f.write( ("{: >16d}" + ' '.join("{: >16.3g}" for _ in range(5)) + '\n').format(
                     hdr, *dnn_cbba, *cbba))
 

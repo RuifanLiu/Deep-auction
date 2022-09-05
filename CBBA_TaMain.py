@@ -21,7 +21,7 @@ from routing_model.utils import load_old_weights
 from cbba._CBBA import CBBA
 from cbba._eval import eval_routes_drl, eval_apriori_routes
 from cbba._func import export_cbba_rewards
-from cbba._args import parse_args
+from cbba._args import parse_args, write_config_file
 
 
 def main(args):
@@ -33,9 +33,11 @@ def main(args):
     drl_model = AttentionLearner(7,5)
     chkpt = torch.load(args.drl_model, map_location = 'cpu')
     drl_model.load_state_dict(chkpt["model"])
+    drl_model.eval()
+    drl_model.greedy = True
     # load_old_weights(drl_model, chkpt['model'])
 
-    value_model = CriticBaseline(drl_model, cust_count = 100, use_qval=False)
+    value_model = CriticBaseline(drl_model, cust_count = 100, use_qval=False, use_cumul_reward=True)
     chkpt = torch.load(args.value_model, map_location = 'cpu')
     value_model.load_state_dict(chkpt['critic'])
     # load_old_weights(value_model, chkpt['critic'])
@@ -53,34 +55,49 @@ def main(args):
     #         env_params.extend( [args.speed_var, args.late_prob, args.slow_down, args.late_var] )
     det_Environment = VRPTW_Environment
     sto_Environment = SVRPTW_Environment
-    # file_path = 'cbba/log_files'
-    # now = datetime.now() #analyse the time consumption
-    # dt_string = now.strftime("%d-%m-%Y-%H-%M-%S") #time string
-    # file_name = 'log-'+dt_string+'.txt'
-    # file_name = os.path.join(file_path, file_name)
-    # logging.basicConfig(filename=file_name,
-    #             level=logging.DEBUG,
-    #             format='%(message)s',  #%(levelname)s:
-    #             datefmt='%I:%M:%S')
+
+    verbose_print("Creating output dir...",
+        end = " ", flush = True)
+    args.output_dir = "cbba_output/{}n{}-{}m{}-{}_{}".format(
+            args.problem_type.upper(),
+            *args.customers_range,
+            *args.vehicles_range,
+            time.strftime('%y%m%d-%H%M')
+            ) if args.output_dir is None else args.output_dir
+    os.makedirs(args.output_dir, exist_ok = True)
+    write_config_file(args, os.path.join(args.output_dir, "args.json"))
+    verbose_print("'{}' created.".format(args.output_dir))
+
+    fpath = os.path.join(args.output_dir, "cbba_result.csv")
+    with open(fpath, 'a') as f:
+        f.write( (' '.join("{: >16}" for _ in range(7)) + '\n').format(
+            "#TASK", "#AGT", "#DNN_EXP", "#DNN_ACT", "#CBBA_EXP", "#CBBA_ACT", "#CBBA_ACT_DRL"
+            ))
     
     header, dnn_cbba_stats, cbba_stats = [],[],[]
     with torch.no_grad():
-        for n in range(*args.customers_range):
-            for m in range(*args.vehicles_range):
+        for n in range(*args.customers_range, 10):
+            for m in range(*args.vehicles_range, 1):
+
+
                 data_path = "./data/s_cvrptw_n{}m{}/norm_data.pyth".format(n, m)    
                 data = torch.load(data_path)
+                # gen_params = [10, 2, (100,100), (1, 3), None, (0, 101), (0, 0), (1, 1),\
+                #     480, (10, 31), 1.0, (30, 91)]
+                # data = VRPTW_Dataset.generate(1000, *gen_params)
+                # data.normalize()
                 loader = DataLoader(data, batch_size = args.valid_batch_size)
 
                 exp_reward, act_reward = [],[]
                 for batch in tqdm(loader):
                     CBBA_Class = CBBA(sto_Environment, batch, scorefun='Scoring_CalcScore_DNN', value_model=value_model)
                     CBBA_Assignments, Total_Score = CBBA_Class.CBBA_Main()
-                    reward, delay = eval_routes_drl(sto_Environment, batch, drl_model, CBBA_Assignments)
+                    reward, delay = eval_routes_drl(sto_Environment, batch, drl_model, value_model, CBBA_Assignments)
                     exp_reward.append(Total_Score)
                     act_reward.append(reward.item())
                 print("DNN-CBBA score: exp: {:.5f} +- {:.5f} act: {:.5f} +- {:.5f}"\
                     .format(np.mean(exp_reward), np.std(exp_reward), np.mean(act_reward), np.std(act_reward)))
-                dnn_cbba_stats.append((np.mean(exp_reward), np.mean(act_reward)))
+                dnn_cbba_stats = (np.mean(exp_reward), np.mean(act_reward))
 
                 exp_reward, act_reward, act_reward_drl = [],[],[]
                 for batch in tqdm(loader):
@@ -89,22 +106,17 @@ def main(args):
                     reward, delay = eval_apriori_routes(sto_Environment, batch, CBBA_Assignments)
                     exp_reward.append(Total_Score)
                     act_reward.append(reward.item())
-                    reward, delay = eval_apriori_routes(sto_Environment, batch, CBBA_Assignments)
+                    reward, delay = eval_routes_drl(sto_Environment, batch, drl_model, value_model, CBBA_Assignments)
                     act_reward_drl.append(reward.item())
                 print("baseline CBBA score: exp: {:.5f} +- {:.5f} act: {:.5f} +- {:.5f} act+drl: {:.5f} +- {:.5f}"\
                     .format(np.mean(exp_reward), np.std(exp_reward), np.mean(act_reward), np.std(act_reward),\
                     np.mean(act_reward_drl), np.mean(act_reward_drl)))
-                dnn_cbba_stats.append((np.mean(exp_reward), np.mean(act_reward), np.mean(act_reward_drl)))
+                cbba_stats = (np.mean(exp_reward), np.mean(act_reward), np.mean(act_reward_drl))
 
-                header.append((n,m))
-    
-    args.output_dir = "cbba_output/{}n{}-{}m{}-{}_{}".format(
-            args.problem_type.upper(),
-            *args.customers_range,
-            *args.vehicles_range,
-            time.strftime("%y%m%d-%H%M")
-            ) if args.output_dir is None else args.output_dir
-    export_cbba_rewards(args.output_dir, header, cbba_stats, dnn_cbba_stats)
+                with open(fpath, 'a') as f:
+                    f.write( ("{: >16d}" +"{:>16d}" + ' '.join("{: >16.5g}" for _ in range(5)) + '\n').format(
+                        n, m, *dnn_cbba_stats, *cbba_stats))
+    # export_cbba_rewards(args.output_dir, header, cbba_stats, dnn_cbba_stats)
     
 
 if __name__=='__main__':

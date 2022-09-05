@@ -14,10 +14,11 @@ def save_checkpoint(args, ep, learner, optim, baseline = None, lr_sched = None):
     torch.save(checkpoint, os.path.join(args.output_dir, "chkpt_ep{}.pyth".format(ep+1)))
 
 
-def load_checkpoint(args, learner, optim, baseline = None, lr_sched = None):
+def load_checkpoint(args, learner, baseline = None, lr_sched = None, optim = None):
     checkpoint = torch.load(args.resume_state)
     learner.load_state_dict(checkpoint["model"])
-    optim.load_state_dict(checkpoint["optim"])
+    if optim is not None:
+        optim.load_state_dict(checkpoint["optim"])
     if args.rate_decay is not None:
         lr_sched.load_state_dict(checkpoint["lr_sched"])
     if args.baseline_type == "critic":

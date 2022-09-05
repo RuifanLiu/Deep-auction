@@ -59,7 +59,7 @@ TEST_BATCH_SIZE = 128
 OUTPUT_DIR = None
 RESUME_STATE = 'vrp_output/SVRPTWn100m1_220902-1529/chkpt_ep100.pyth'
 CHECKPOINT_PERIOD = 5
-TRAIN_MODE = 'value'
+TRAIN_MODE = 'policy'
 
 
 def write_config_file(args, output_file):
