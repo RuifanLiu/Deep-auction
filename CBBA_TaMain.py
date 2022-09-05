@@ -5,26 +5,111 @@ Created on Tue Nov 17 17:56:48 2020
 @author: s313488
 """
 import os
-from re import I
+from tqdm import tqdm
 import time
 from datetime import datetime
 import logging
 import numpy as np
-import tensorflow as tf
-from stable_baselines import A2C
+import torch
+from torch.utils.data import DataLoader
 
-from customEnv import SubEnvironment
-from utils.networks import MultiHeadAttention
-from customPolicy.common_policies import A2C_ValueNetwork
-from customEnv.costum_vec_env import VecNormalize, make_ta_env
+from problems import *
+from routing_model.baselines import *
+from routing_model._learner import AttentionLearner
+from routing_model.utils import load_old_weights
+
+from cbba._CBBA import CBBA
+from cbba._eval import eval_routes_drl, eval_apriori_routes
+from cbba._func import export_cbba_rewards
+from cbba._args import parse_args
 
 
-from CBBA import CBBA
-from CBBA_rewardFun import actualReward
+def main(args):
+    if args.verbose:
+        verbose_print = print
+    else:
+        def verbose_print(*args, **kwargs): pass
 
+    drl_model = AttentionLearner(7,5)
+    chkpt = torch.load(args.drl_model, map_location = 'cpu')
+    drl_model.load_state_dict(chkpt["model"])
+    # load_old_weights(drl_model, chkpt['model'])
+
+    value_model = CriticBaseline(drl_model, cust_count = 100, use_qval=False)
+    chkpt = torch.load(args.value_model, map_location = 'cpu')
+    value_model.load_state_dict(chkpt['critic'])
+    # load_old_weights(value_model, chkpt['critic'])
+
+    # Environment = {
+    #         "vrp": VRP_Environment,
+    #         "vrptw": VRPTW_Environment,
+    #         "svrptw": SVRPTW_Environment,
+    #         "sdvrptw": SDVRPTW_Environment
+    #         }.get(args.problem_type)
+    # env_params = [args.pending_cost]
+    # if args.problem_type != "vrp":
+    #     env_params.append(args.late_discount)
+    #     if args.problem_type != "vrptw":
+    #         env_params.extend( [args.speed_var, args.late_prob, args.slow_down, args.late_var] )
+    det_Environment = VRPTW_Environment
+    sto_Environment = SVRPTW_Environment
+    # file_path = 'cbba/log_files'
+    # now = datetime.now() #analyse the time consumption
+    # dt_string = now.strftime("%d-%m-%Y-%H-%M-%S") #time string
+    # file_name = 'log-'+dt_string+'.txt'
+    # file_name = os.path.join(file_path, file_name)
+    # logging.basicConfig(filename=file_name,
+    #             level=logging.DEBUG,
+    #             format='%(message)s',  #%(levelname)s:
+    #             datefmt='%I:%M:%S')
+    
+    header, dnn_cbba_stats, cbba_stats = [],[],[]
+    with torch.no_grad():
+        for n in range(*args.customers_range):
+            for m in range(*args.vehicles_range):
+                data_path = "./data/s_cvrptw_n{}m{}/norm_data.pyth".format(n, m)    
+                data = torch.load(data_path)
+                loader = DataLoader(data, batch_size = args.valid_batch_size)
+
+                exp_reward, act_reward = [],[]
+                for batch in tqdm(loader):
+                    CBBA_Class = CBBA(sto_Environment, batch, scorefun='Scoring_CalcScore_DNN', value_model=value_model)
+                    CBBA_Assignments, Total_Score = CBBA_Class.CBBA_Main()
+                    reward, delay = eval_routes_drl(sto_Environment, batch, drl_model, CBBA_Assignments)
+                    exp_reward.append(Total_Score)
+                    act_reward.append(reward.item())
+                print("DNN-CBBA score: exp: {:.5f} +- {:.5f} act: {:.5f} +- {:.5f}"\
+                    .format(np.mean(exp_reward), np.std(exp_reward), np.mean(act_reward), np.std(act_reward)))
+                dnn_cbba_stats.append((np.mean(exp_reward), np.mean(act_reward)))
+
+                exp_reward, act_reward, act_reward_drl = [],[],[]
+                for batch in tqdm(loader):
+                    CBBA_Class = CBBA(det_Environment, batch, scorefun='Scoring_CalcScore_Original', value_model=value_model)
+                    CBBA_Assignments, Total_Score = CBBA_Class.CBBA_Main()
+                    reward, delay = eval_apriori_routes(sto_Environment, batch, CBBA_Assignments)
+                    exp_reward.append(Total_Score)
+                    act_reward.append(reward.item())
+                    reward, delay = eval_apriori_routes(sto_Environment, batch, CBBA_Assignments)
+                    act_reward_drl.append(reward.item())
+                print("baseline CBBA score: exp: {:.5f} +- {:.5f} act: {:.5f} +- {:.5f} act+drl: {:.5f} +- {:.5f}"\
+                    .format(np.mean(exp_reward), np.std(exp_reward), np.mean(act_reward), np.std(act_reward),\
+                    np.mean(act_reward_drl), np.mean(act_reward_drl)))
+                dnn_cbba_stats.append((np.mean(exp_reward), np.mean(act_reward), np.mean(act_reward_drl)))
+
+                header.append((n,m))
+    
+    args.output_dir = "cbba_output/{}n{}-{}m{}-{}_{}".format(
+            args.problem_type.upper(),
+            *args.customers_range,
+            *args.vehicles_range,
+            time.strftime("%y%m%d-%H%M")
+            ) if args.output_dir is None else args.output_dir
+    export_cbba_rewards(args.output_dir, header, cbba_stats, dnn_cbba_stats)
+    
 
 if __name__=='__main__':
-
+    main(parse_args())
+    '''
     ### value model - using supervised learning
     value_estimate_model = 'Saved_model/my_model-20-07-2022-22-00-52'
     value_model = tf.keras.models.load_model( value_estimate_model,
@@ -52,26 +137,11 @@ if __name__=='__main__':
     RL_algorithm = 'A2C'
     DRL_model = eval(RL_algorithm).load(last_trained_model)
 
-    file_path = './Log_files'
-    now = datetime.now() #analyse the time consumption
-    dt_string = now.strftime("%d-%m-%Y-%H-%M-%S") #time string
-    file_name = 'log-'+dt_string+'.txt'
 
-    file_name = os.path.join(file_path, file_name)
-    logging.basicConfig(filename=file_name,
-                level=logging.DEBUG,
-                format='%(message)s',  #%(levelname)s:
-                datefmt='%I:%M:%S')
     
     logging.info('Value Estimate Model:'+value_estimate_model)
     logging.info('DRL Route Planner Model:'+last_trained_model)
 
-    ActualReweards1, ActualReweards2 = [], []
-    ExpectReweards1, ExpectReweards2 = [], []
-    ActualReweards3, ExpectReweards3 = [], []
-    ActualReweards4, ActualReweards5 = [], []
-
-    CalTimes1, CalTimes2, CalTimes3=[],[],[]
     n_agent = 5
     mission_size = 20
     for n_agent in range(2,11,1):
@@ -123,27 +193,27 @@ if __name__=='__main__':
             # --------------------------------------------------------------------
             #  Task Assignment & Evaluation
             # --------------------------------------------------------------------
-            # scorefun = 'Scoring_CalcScore_DNN'
-            # t_start = time.perf_counter()
-            # CBBA_Class1 = CBBA(multiObs, scorefun, Graph, value_model=value_model, DRL_model=DRL_model, env=env0, value_model2 = value_model2)
-            # CBBA_Assignments1, Total_Score1 = CBBA_Class1.CBBA_Main()
-            # t_end = time.perf_counter()
-            # cal_time1 = t_end-t_start
-            # CalTime1.append(cal_time1)
+            scorefun = 'Scoring_CalcScore_DNN'
+            t_start = time.perf_counter()
+            CBBA_Class1 = CBBA(multiObs, scorefun, Graph, value_model=value_model, DRL_model=DRL_model, env=env0, value_model2 = value_model2)
+            CBBA_Assignments1, Total_Score1 = CBBA_Class1.CBBA_Main()
+            t_end = time.perf_counter()
+            cal_time1 = t_end-t_start
+            CalTime1.append(cal_time1)
             
-            # routingMethod = 'DRL_planner'
-            # actual_reward1, delay1 = actualReward(env0, multiObs, routingMethod, DRL_model, CBBA_Assignments1, CBBA_Class1, value_model)
-            # print('DNN-CBBA Expected Score:', Total_Score1)
-            # print('DNN-CBBA Actual Score:', actual_reward1)
-            # actualReweards1.append(actual_reward1)
-            # expectReweards1.append(Total_Score1)
-            # delayTimes1.append(delay1)
+            routingMethod = 'DRL_planner'
+            actual_reward1, delay1 = actualReward(env0, multiObs, routingMethod, DRL_model, CBBA_Assignments1, CBBA_Class1, value_model)
+            print('DNN-CBBA Expected Score:', Total_Score1)
+            print('DNN-CBBA Actual Score:', actual_reward1)
+            actualReweards1.append(actual_reward1)
+            expectReweards1.append(Total_Score1)
+            delayTimes1.append(delay1)
 
-            # logging.info('DNN-CBBA Assignment:'+str(CBBA_Assignments1))
-            # logging.info('DNN-CBBA Expected Score:'+str(Total_Score1))
-            # logging.info('DNN-CBBA Actual Score:'+str(actual_reward1))
-            # logging.info('DNN-CBBA Computing Time:'+str(cal_time1))
-            # logging.info('DNN-CBBA Task Delayed Time:'+str(delay1))
+            logging.info('DNN-CBBA Assignment:'+str(CBBA_Assignments1))
+            logging.info('DNN-CBBA Expected Score:'+str(Total_Score1))
+            logging.info('DNN-CBBA Actual Score:'+str(actual_reward1))
+            logging.info('DNN-CBBA Computing Time:'+str(cal_time1))
+            logging.info('DNN-CBBA Task Delayed Time:'+str(delay1))
 
 
             # --------------------------------------------------------------------
@@ -289,6 +359,6 @@ if __name__=='__main__':
         # CalTimes1.append(np.mean(CalTime1))
         # CalTimes2.append(np.mean(CalTime2))
         # CalTimes3.append(np.mean(CalTime3))
-    
+    '''
 
 

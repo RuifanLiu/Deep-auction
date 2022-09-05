@@ -2,18 +2,19 @@ from problems import VRPTW_Dataset
 import torch
 
 class SDVRPTW_Dataset(VRPTW_Dataset):
-    CUST_FEAT_SIZE = 7
+    CUST_FEAT_SIZE = 8
 
     @classmethod
     def generate(cls,
             batch_size = 1,
             cust_count = 100,
             veh_count = 25,
-            veh_capa = 200,
-            veh_speed = 1,
+            veh_capa_range = (50,100),
+            veh_speed_range = (0.6,1.2),
             min_cust_count = None,
             cust_loc_range = (0,101),
             cust_dem_range = (5,41),
+            cust_rew_range = (0.5,1.0),
             horizon = 480,
             cust_dur_range = (10,31),
             tw_ratio = 0.5,
@@ -23,12 +24,18 @@ class SDVRPTW_Dataset(VRPTW_Dataset):
             ):
         size = (batch_size, cust_count, 1)
 
-        # Sample locs        x_j, y_j ~ U(0, 100)
+        # Sample locs        x_j, y_j ~ U(0km, 10km)
         locs = torch.randint(*cust_loc_range, (batch_size, cust_count+1, 2), dtype = torch.float)
         # Sample dems             q_j ~ U(5,  40)
-        dems = torch.randint(*cust_dem_range, size, dtype = torch.float)
-        # Sample serv. time       s_j ~ U(10, 30)
-        durs = torch.randint(*cust_dur_range, size, dtype = torch.float)
+        dems = torch.randint(*cust_dem_range, size, dtype = torch.float) \
+            if cust_dem_range[0]!=cust_dem_range[1] else torch.full(size, cust_dem_range[0], dtype = torch.float)
+        # Sample rewards          r_j ~ U(0.5, 1.0)
+        rews = torch.randint(*cust_rew_range, size, dtype = torch.float) \
+            if cust_rew_range[0]!=cust_rew_range[1] else torch.full(cust_rew_range[0], dtype = torch.float)
+        # Sample serv. time       s_j ~ U(10min, 30min)
+        durs = torch.randint(*cust_dur_range, size, dtype = torch.float) \
+            if cust_dur_range[0]!=cust_dur_range[1] else torch.full(cust_dur_range[0], dtype = torch.float)
+
 
         # Sample dyn subset           ~ B(dod)
         # and early/late appearance   ~ B(d_early_ratio)
@@ -77,7 +84,7 @@ class SDVRPTW_Dataset(VRPTW_Dataset):
         rdys.floor_()
 
         # Regroup all features in one tensor
-        customers = torch.cat((locs[:,1:], dems, rdys, rdys + tws, durs, aprs), 2)
+        customers = torch.cat((locs[:,1:], dems, rews, rdys, rdys + tws, durs, aprs), 2)
 
         # Add depot node
         depot_node = torch.zeros((batch_size, 1, cls.CUST_FEAT_SIZE))
@@ -91,6 +98,16 @@ class SDVRPTW_Dataset(VRPTW_Dataset):
             counts = torch.randint(min_cust_count+1, cust_count+2, (batch_size, 1), dtype = torch.int64)
             cust_mask = torch.arange(cust_count+1).expand(batch_size, -1) > counts
             nodes[cust_mask] = 0
+            
+        veh_size = (batch_size, veh_count, 1)
+        # sample veh_capa    c_i ~ U(50,100)
+        veh_capa = torch.randint(*veh_capa_range, veh_size, dtype = torch.float)\
+            if veh_capa_range[0]!=veh_capa_range[1] else torch.full(veh_size, veh_capa_range[0], dtype = torch.float)
+        # sample veh_speed      v_i ~ U(0.6km/min, 1.2km/min) = (10m/s, 20m/s)
+        veh_speed = torch.randint(*veh_speed_range, veh_size, dtype = torch.float) \
+            if veh_speed_range[0]!=veh_speed_range[1] else torch.full(veh_size, veh_speed_range[0], dtype = torch.float)
+        vehs =  torch.cat((veh_capa, veh_speed), 2)
 
-        dataset = cls(veh_count, veh_capa, veh_speed, nodes, cust_mask)
+
+        dataset = cls(vehs, nodes, cust_mask)
         return dataset

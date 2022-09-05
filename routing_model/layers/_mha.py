@@ -102,7 +102,6 @@ class _MHA_V2(nn.Module):
 
         self.init_parameters()
 
-
     def init_parameters(self):
         nn.init.uniform_(self.query_project.weight, -self._inv_sqrt_d, self._inv_sqrt_d)
         nn.init.uniform_(self.key_project.weight, -self._inv_sqrt_d, self._inv_sqrt_d)

@@ -56,7 +56,7 @@ def _solve_cp(nodes, veh_count, veh_capa, veh_speed, late_cost):
 def ort_solve(data, late_cost = 1):
     with Pool() as p:
         with tqdm(desc = "Calling ORTools", total = data.batch_size) as pbar:
-            results = [p.apply_async(_solve_cp, (nodes, data.veh_count, data.veh_capa, data.veh_speed, late_cost),
+            results = [p.apply_async(_solve_cp, (nodes, data.vehs, late_cost),
                 callback = lambda _:pbar.update()) for nodes in data.nodes_gen()]
             routes = [res.get() for res in results]
     return routes

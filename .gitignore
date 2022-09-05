@@ -1,7 +1,9 @@
 __pycache__/
+vrp_output/
 output/
 data/
 results/
 pretrained/
 *.pdf
-*.pyth
+*.csv
+*.json

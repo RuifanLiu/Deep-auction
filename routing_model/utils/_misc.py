@@ -25,8 +25,12 @@ def export_train_test_stats(args, start_ep, train_stats, test_stats):
             "#EP", "#LOSS", "#PROB", "#VAL", "#BL", "#NORM", "#TEST_MU", "#TEST_STD", "#TEST_GAP"
             ))
         for ep, (tr,te) in enumerate( zip_longest(train_stats, test_stats, fillvalue=float('nan')), start = start_ep):
-            f.write( ("{: >16d}" + ' '.join("{: >16.3g}" for _ in range(8)) + '\n').format(
-                ep, *tr, *te))
+            if test_stats:
+                f.write( ("{: >16d}" + ' '.join("{: >16.3g}" for _ in range(8)) + '\n').format(
+                    ep, *tr, *te))
+            else:
+                f.write( ("{: >16d}" + ' '.join("{: >16.3g}" for _ in range(5)) + '\n').format(
+                    ep, *tr))
 
 
 def _pad_with_zeros(src_it):

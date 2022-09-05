@@ -9,27 +9,30 @@ class VRPTW_Dataset(VRP_Dataset):
             batch_size = 1,
             cust_count = 100,
             veh_count = 25,
-            veh_capa_range = (50,100),
-            veh_speed_range = (0.5,1.0),
+            veh_capa_range = (100,100),
+            veh_speed_range = (1,3),
             min_cust_count = None,
-            cust_loc_range = (0,101),
-            cust_dem_range = (5,41),
-            cust_rew_range = (0.5,1.0),
+            cust_loc_range = (0,101), 
+            cust_dem_range = (0,0),
+            cust_rew_range = (1,1),
             horizon = 480,
             cust_dur_range = (10,31),
-            tw_ratio = 0.5,
+            tw_ratio = 1.0,
             cust_tw_range = (30,91)
             ):
         size = (batch_size, cust_count, 1)
 
-        # Sample locs        x_j, y_j ~ U(0, 100)
+        # Sample locs        x_j, y_j ~ U(0km, 10km)
         locs = torch.randint(*cust_loc_range, (batch_size, cust_count+1, 2), dtype = torch.float)
         # Sample dems             q_j ~ U(5,  40)
-        dems = torch.randint(*cust_dem_range, size, dtype = torch.float)
+        dems = torch.randint(*cust_dem_range, size, dtype = torch.float) \
+            if cust_dem_range[0]!=cust_dem_range[1] else torch.full(size, cust_dem_range[0], dtype = torch.float)
         # Sample rewards          r_j ~ U(0.5, 1.0)
-        rews = torch.randint(*cust_rew_range, size, dtype = torch.float)
-        # Sample serv. time       s_j ~ U(10, 30)
-        durs = torch.randint(*cust_dur_range, size, dtype = torch.float)
+        rews = torch.randint(*cust_rew_range, size, dtype = torch.float) \
+            if cust_rew_range[0]!=cust_rew_range[1] else torch.full(size, cust_rew_range[0], dtype = torch.float)
+        # Sample serv. time       s_j ~ U(10min, 30min)
+        durs = torch.randint(*cust_dur_range, size, dtype = torch.float) \
+            if cust_dur_range[0]!=cust_dur_range[1] else torch.full(size, cust_dur_range[0], dtype = torch.float)
 
         # Sample TW subset            ~ B(tw_ratio)
         if isinstance(tw_ratio, float):
@@ -67,29 +70,30 @@ class VRPTW_Dataset(VRP_Dataset):
             cust_mask = torch.arange(cust_count+1).expand(batch_size, -1) > counts
             nodes[cust_mask] = 0
 
-        # sample veh_capa
-        veh_capa = torch.randint(*veh_capa_range, (batch_size, veh_count+1, 2), dtype = torch.float)
-        # sample veh_speed
-        veh_speed = torch.randint(*veh_speed_range, (batch_size, veh_count+1, 2), dtype = torch.float)
+        veh_size = (batch_size, veh_count, 1)
+        # sample veh_capa    c_i ~ U(50,100)
+        veh_capa = torch.randint(*veh_capa_range, veh_size, dtype = torch.float)\
+            if veh_capa_range[0]!=veh_capa_range[1] else torch.full(veh_size, veh_capa_range[0], dtype = torch.float)
+        # sample veh_speed      v_i ~ U(0.6km/min, 1.2km/min) = (10m/s, 20m/s)
+        veh_speed = torch.randint(*veh_speed_range, veh_size, dtype = torch.float) \
+            if veh_speed_range[0]!=veh_speed_range[1] else torch.full(veh_size, veh_speed_range[0], dtype = torch.float)
+        vehs =  torch.cat((veh_capa, veh_speed), 2)
 
-        vehs =  torch.cat((veh_capa, veh_speed), 1)
-
-        dataset = cls(vehs, veh_capa_range, veh_speed_range, nodes, cust_mask)
+        dataset = cls(vehs, nodes, cust_mask)
         return dataset
 
     def normalize(self):
         loc_scl, loc_off = self.nodes[:,:,:2].max().item(), self.nodes[:,:,:2].min().item()
         loc_scl -= loc_off
-        t_scl = self.nodes[:,0,4].max().item()
+        cap_scl = self.vehs[:,:,0].max().item()
+        t_scl = self.nodes[:,:,4].max().item()
 
         self.nodes[:,:,:2] -= loc_off
         self.nodes[:,:,:2] /= loc_scl
-        self.nodes[:,:, 2] /= self.veh_capa
-        self.nodes[:,:,3:] /= t_scl
+        self.nodes[:,:, 2] /= cap_scl
+        self.nodes[:,:,4:] /= t_scl
 
-        self.veh_capa /= self.veh_capa_range[1]
-        self.veh_speed /= self.veh_speed_range[1]
-
-        self.veh_speed *= t_scl / loc_scl
+        self.vehs[:,:,0] /= cap_scl
+        self.vehs[:,:,1] *= t_scl / loc_scl
 
         return loc_scl, t_scl

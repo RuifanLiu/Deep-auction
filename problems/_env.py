@@ -1,27 +1,26 @@
 import torch
 
 class VRP_Environment:
-    VEH_STATE_SIZE = 4
-    CUST_FEAT_SIZE = 3
+    VEH_STATE_SIZE = 4 # [loc, cap, speed]
+    CUST_FEAT_SIZE = 4 # [loc, dem, rew]
 
-    def __init__(self, data, nodes = None, cust_mask = None,
+    def __init__(self, data, vehs = None, nodes = None, cust_mask = None,
             pending_cost = 2):
-        self.veh_count = data.veh_count
-        self.veh_capa = data.veh_capa
-        self.veh_speed = data.veh_speed
+        self.vehs = data.vehs if vehs is None else vehs
         self.nodes = data.nodes if nodes is None else nodes
         self.init_cust_mask = data.cust_mask if cust_mask is None else cust_mask
         self.minibatch_size, self.nodes_count, _ = self.nodes.size()
-    
+        _, self.veh_count, _ = self.vehs.size()
+
         self.pending_cost = pending_cost
 
     def _update_vehicles(self, dest):
         dist = torch.pairwise_distance(self.cur_veh[:,0,:2], dest[:,0,:2], keepdim = True)
-        tt = dist / self.veh_speed
-
+        veh_speed = self.cur_veh[:,0,3] 
+        # tt = dist / veh_speed
         self.cur_veh[:,:,:2] = dest[:,:,:2]
         self.cur_veh[:,:,2] -= dest[:,:,2]
-        self.cur_veh[:,:,3] += tt
+        # self.cur_veh[:,:,4] += tt
 
         self.vehicles = self.vehicles.scatter(1,
                 self.cur_veh_idx[:,:,None].expand(-1,-1,self.VEH_STATE_SIZE), self.cur_veh)
@@ -50,7 +49,7 @@ class VRP_Environment:
     def reset(self):
         self.vehicles = self.nodes.new_zeros((self.minibatch_size, self.veh_count, self.VEH_STATE_SIZE))
         self.vehicles[:,:,:2] = self.nodes[:,0:1,:2]
-        self.vehicles[:,:,2] = self.veh_capa
+        self.vehicles[:,:,2:4] = self.vehs
 
         self.veh_done = self.nodes.new_zeros((self.minibatch_size, self.veh_count), dtype = torch.bool)
         self.done = False

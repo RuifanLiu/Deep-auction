@@ -21,11 +21,13 @@ class TransformerEncoderLayer(nn.Module):
         :return:        :math:`N \times L \times D_M`
         """
         att = self.mha(h_in, mask = mask)
-        att = self.bn1( (h_in + att).permute(0,2,1) ).permute(0,2,1)
+        # att = self.bn1( (h_in + att).permute(0,2,1) ).permute(0,2,1)
+        att = h_in + att
 
         h_out = F.relu( self.ff1(att) )
         h_out = self.ff2(h_out)
-        h_out = self.bn2( (att + h_out).permute(0,2,1) ).permute(0,2,1)
+        # h_out = self.bn2( (att + h_out).permute(0,2,1) ).permute(0,2,1)
+        h_out = att + h_out
 
         if mask is not None:
             h_out[mask] = 0

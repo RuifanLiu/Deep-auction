@@ -8,6 +8,7 @@ class CriticBaseline(Baseline):
     def __init__(self, learner, cust_count, use_qval = True, use_cumul_reward = False):
         super().__init__(learner, use_cumul_reward)
         self.use_qval = use_qval
+        self.cust_count = cust_count
         self.project = nn.Linear(cust_count+1, cust_count+1 if use_qval else 1, bias = False)
 
     def eval_step(self, vrp_dynamics, learner_compat, cust_idx):
@@ -16,6 +17,18 @@ class CriticBaseline(Baseline):
         val = self.project(compat)
         if self.use_qval:
             val = val.gather(2, cust_idx.unsqueeze(1).expand(-1,1,-1))
+        return val.squeeze(1)
+    
+    def eval_init(self, vrp_dynamics):
+        self.learner._encode_customers(vrp_dynamics.nodes)
+        vrp_dynamics.reset()
+        veh_repr = self.learner._repr_vehicle(
+                    vrp_dynamics.vehicles,
+                    vrp_dynamics.cur_veh_idx,
+                    vrp_dynamics.mask)
+        compat = self.learner._score_customers(veh_repr)
+        compat[vrp_dynamics.cur_veh_mask] = 0
+        val = self.project(compat)
         return val.squeeze(1)
 
     def __call__(self, vrp_dynamics):
