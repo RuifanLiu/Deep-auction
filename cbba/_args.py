@@ -8,7 +8,7 @@ NO_CUDA = False
 SEED = None
 
 PROBLEM = "svrptw"
-CUST_RANGE = (20,21)
+CUST_RANGE = (10,101)
 VEH_RANGE = (5,6)
 VALID_DATASET = 'data/'
 ITERATION = 10

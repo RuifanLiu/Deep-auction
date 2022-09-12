@@ -4,6 +4,8 @@ Created on Tue Nov 17 13:16:26 2020
 
 @author: s313488
 """
+from cProfile import run
+import time
 import numpy as np
 from ._score import Scoring_CalcScore_Original, Scoring_CalcScore_DNN, Scoring_CalcScore_Maxmin_DNN
 
@@ -41,7 +43,7 @@ class CBBA():
         self.DRL_model = kwargs.get('DRL_model') if 'DRL_model' in kwargs else None
         
     def CBBA_Main(self):
-        
+        t_start = time.perf_counter()
         T = 1
         t = np.zeros([self.CBBA_Params_N, self.CBBA_Params_N])
         lastTime = T-1
@@ -109,7 +111,8 @@ class CBBA():
                     break
         
         Assignment_result = [self.CBBA_Data[n]['path'] for n in range(self.CBBA_Params_N)]
-        return Assignment_result, Total_Score       
+        running_time = time.perf_counter() - t_start
+        return Assignment_result, Total_Score, running_time    
     
     
         
