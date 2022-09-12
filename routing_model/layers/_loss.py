@@ -22,17 +22,16 @@ def reinforce_loss(logprobs, rewards, baseline = None, weights = None, discount 
     if isinstance(rewards, torch.Tensor):
         if baseline is None:
             baseline = torch.zeros_like(rewards)
-
         loss = torch.stack([-logp * w for logp,w in zip(logprobs, weights)]).sum(dim = 0)
         loss *= (rewards - baseline.detach())
 
+        bl_loss = 0
         if baseline.requires_grad:
-            loss += F.smooth_l1_loss(baseline, rewards)
-
+            bl_loss += F.smooth_l1_loss(baseline, rewards)
+        loss += bl_loss
     else:
         if baseline is None:
             baseline = repeat(torch.zeros_like(rewards[0]))
-
         cumul = torch.zeros_like(rewards[0])
         vals = []
         for r in reversed(rewards):
@@ -47,16 +46,16 @@ def reinforce_loss(logprobs, rewards, baseline = None, weights = None, discount 
             if bl.requires_grad:
                 bl_loss.append( F.smooth_l1_loss(bl, val) )
         loss = torch.stack(loss).sum(dim = 0)
-
         if bl_loss:
-            loss += torch.stack(bl_loss).sum(dim = 0)
+            bl_loss = torch.stack(bl_loss).sum(dim = 0)
+        loss += bl_loss
 
     if reduction == 'none':
-        return loss
+        return loss, bl_loss
     elif reduction == 'sum':
-        return loss.sum()
+        return loss.sum(), bl_loss.sum()
     else: # reduction == 'mean'
-        return loss.mean()
+        return loss.mean(), bl_loss.mean()
 
 
 def value_loss(rewards, baseline = None, weights = None, discount = 1.0, reduction = 'mean'):

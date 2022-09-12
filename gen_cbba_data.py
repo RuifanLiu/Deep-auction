@@ -33,7 +33,7 @@ for n,m in ((10,2), (20,4), (50,10)):
 
 # S-CVRPTW Data (more tw)
 for n in range(10,101,10):
-    for m in range(2,11,1):
+    for m in range(5,6,1):
         out_dir = "data_test/s_cvrptw_n{}m{}".format(n,m)
         os.makedirs(out_dir, exist_ok = True)
         data = VRPTW_Dataset.generate(BATCH_SIZE, n, m, tw_ratio = 1.0)

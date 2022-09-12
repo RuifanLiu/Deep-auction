@@ -53,11 +53,14 @@ class VRP_Dataset(Dataset):
             if veh_speed_range[0]!=veh_speed_range[1] else torch.full(veh_size, veh_speed_range[0], dtype = torch.float)
         vehs =  torch.cat((veh_capa, veh_speed), 2)
 
-
-        dataset = cls(vehs, nodes, cust_mask)
+    
+        loc_scl = cust_loc_range[1] - cust_loc_range[0] - 1
+        cap_scl = veh_capa_range[1]
+        dataset = cls(vehs, nodes, cust_mask, loc_scl = loc_scl, cap_scl = cap_scl)
+    
         return dataset
 
-    def __init__(self, vehs, nodes, cust_mask = None,):
+    def __init__(self, vehs, nodes, cust_mask = None, **kwargs):
         self.vehs = vehs
         self.nodes = nodes
 
@@ -66,6 +69,10 @@ class VRP_Dataset(Dataset):
             raise ValueError("Expected {} customer features per nodes, got {}".format(
                 self.CUST_FEAT_SIZE, d))
         self.cust_mask = cust_mask
+
+        self.loc_scl = kwargs.get('loc_scl') if 'loc_scl' in kwargs else None       
+        self.cap_scl = kwargs.get('cap_scl') if 'cap_scl' in kwargs else None
+        self.t_scl = kwargs.get('t_scl') if 't_scl' in kwargs else None
 
     def __len__(self):
         return self.batch_size
@@ -84,19 +91,19 @@ class VRP_Dataset(Dataset):
 
 
     def normalize(self):
-        loc_scl, loc_off = self.nodes[:,:,:2].max().item(), self.nodes[:,:,:2].min().item()
-        loc_scl -= loc_off
+        # loc_scl, loc_off = self.nodes[:,:,:2].max().item(), self.nodes[:,:,:2].min().item()
+        # loc_scl -= loc_off
 
-        cap_scl = self.vehs[:,:,0].max().item()
+        # cap_scl = self.vehs[:,:,0].max().item()
 
-        self.nodes[:,:,:2] -= loc_off
-        self.nodes[:,:,:2] /= loc_scl
-        self.nodes[:,:, 2] /= cap_scl
+        # self.nodes[:,:,:2] -= loc_off
+        self.nodes[:,:,:2] /= self.loc_scl
+        self.nodes[:,:, 2] /= self.cap_scl
 
-        self.vehs[:,:,0] /= cap_scl
-        self.vehs[:,:,1] /= loc_scl
+        self.vehs[:,:,0] /= self.cap_scl
+        self.vehs[:,:,1] /= self.loc_scl
 
-        return loc_scl, cap_scl
+        return self.loc_scl, self.cap_scl
 
     def save(self, fpath):
         torch.save({

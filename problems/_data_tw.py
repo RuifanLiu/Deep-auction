@@ -80,21 +80,24 @@ class VRPTW_Dataset(VRP_Dataset):
             if veh_speed_range[0]!=veh_speed_range[1] else torch.full(veh_size, veh_speed_range[0], dtype = torch.float)
         vehs =  torch.cat((veh_capa, veh_speed), 2)
 
-        dataset = cls(vehs, nodes, cust_mask)
+        t_scl = horizon
+        loc_scl = cust_loc_range[1] - cust_loc_range[0] - 1
+        cap_scl = veh_capa_range[1]
+        dataset = cls(vehs, nodes, cust_mask, t_scl = t_scl, loc_scl = loc_scl, cap_scl = cap_scl)
         return dataset
 
     def normalize(self):
-        loc_scl, loc_off = self.nodes[:,:,:2].max().item(), self.nodes[:,:,:2].min().item()
-        loc_scl -= loc_off
-        cap_scl = self.vehs[:,:,0].max().item()
-        t_scl = self.nodes[:,:,4].max().item()
+        # loc_scl, loc_off = self.nodes[:,:,:2].max().item(), self.nodes[:,:,:2].min().item()
+        # loc_scl -= loc_off
+        # cap_scl = self.vehs[:,:,0].max().item() 
+        # t_scl = self.nodes[:,:,4].max().item() 
 
-        self.nodes[:,:,:2] -= loc_off
-        self.nodes[:,:,:2] /= loc_scl
-        self.nodes[:,:, 2] /= cap_scl
-        self.nodes[:,:,4:] /= t_scl
+        # self.nodes[:,:,:2] -= loc_off
+        self.nodes[:,:,:2] /= self.loc_scl
+        self.nodes[:,:, 2] /= self.cap_scl
+        self.nodes[:,:,4:] /= self.t_scl
 
-        self.vehs[:,:,0] /= cap_scl
-        self.vehs[:,:,1] *= t_scl / loc_scl
+        self.vehs[:,:,0] /= self.cap_scl
+        self.vehs[:,:,1] *= self.t_scl / self.loc_scl # 480/100
 
-        return loc_scl, t_scl
+        return self.loc_scl, self.t_scl

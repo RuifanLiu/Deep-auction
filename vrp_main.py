@@ -20,12 +20,16 @@ import time
 import os
 from itertools import chain
 
-def train_value_epoch(args, data, Environment, env_params, policy_bl_wrapped_learner, bl_wrapped_learner, optim, device, ep):
-    policy_bl_wrapped_learner.learner.eval()
+def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, device, ep, **kwargs):
+    if args.train_mode == 'value':
+        assert 'policy_baseline' in kwargs, 'Value training mode needs policy model to be passed'
+        policy_bl_wrapped_learner = kwargs.get('policy_baseline')
+        policy_bl_wrapped_learner.learner.eval()
     bl_wrapped_learner.learner.train()
     loader = DataLoader(data, args.batch_size, True)
     
     ep_loss = 0
+    ep_bl_loss = 0
     ep_prob = 0
     ep_val = 0
     ep_bl = 0
@@ -38,9 +42,14 @@ def train_value_epoch(args, data, Environment, env_params, policy_bl_wrapped_lea
                 vehs, custs, mask = minibatch[0].to(device), minibatch[1].to(device), minibatch[2].to(device)
 
             dyna = Environment(data, vehs, custs, mask, *env_params)
-            actions, logps, rewards, _ = policy_bl_wrapped_learner(dyna)
-            _, _, _, bl_vals = bl_wrapped_learner(dyna)
-            loss = value_loss(rewards, bl_vals)
+            if args.train_mode == 'policy':
+                actions, logps, rewards, bl_vals = bl_wrapped_learner(dyna)
+                loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
+            elif args.train_mode == 'value':
+                actions, logps, rewards, _ = policy_bl_wrapped_learner(dyna)
+                _, _, _, bl_vals = bl_wrapped_learner(dyna)
+                loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
+                
             prob = torch.stack(logps).sum(0).exp().mean()
             val = rewards.mean()            
             bl = bl_vals.mean()
@@ -56,75 +65,47 @@ def train_value_epoch(args, data, Environment, env_params, policy_bl_wrapped_lea
                 loss, prob, val, bl, grad_norm))
 
             ep_loss += loss.item()
+            ep_bl_loss += bl_loss.item()
             ep_prob += prob.item()
             ep_val += val.item()
             ep_bl += bl.item()
             ep_norm += grad_norm
 
-    return tuple(stat / args.iter_count for stat in (ep_loss, ep_prob, ep_val, ep_bl, ep_norm))
+    return tuple(stat / args.iter_count for stat in (ep_loss, ep_bl_loss, ep_prob, ep_val, ep_bl, ep_norm))
 
 
-def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, device, ep):
-    bl_wrapped_learner.learner.train()
-    loader = DataLoader(data, args.batch_size, True)
+def test_epoch(args, test_env, learner, bl_wrapped_learner, ref_costs, **kwargs):
+    bl_wrapped_learner.learner.eval()
+    if args.train_mode == 'value':
+        policy_bl_wrapped_learner = kwargs.get('policy_baseline')
+        policy_bl_wrapped_learner.learner.eval()
 
-    ep_loss = 0
-    ep_prob = 0
-    ep_val = 0
-    ep_bl = 0
-    ep_norm = 0
-    with tqdm(loader, desc = "Ep.#{: >3d}/{: <3d}".format(ep+1, args.epoch_count)) as progress:
-        for minibatch in progress:
-            if data.cust_mask is None:
-                vehs, custs, mask = minibatch[0].to(device), minibatch[1].to(device), None
-            else:
-                vehs, custs, mask = minibatch[0].to(device), minibatch[1].to(device), minibatch[2].to(device)
-
-            dyna = Environment(data, vehs, custs, mask, *env_params)
-            actions, logps, rewards, bl_vals = bl_wrapped_learner(dyna)
-            loss = reinforce_loss(logps, rewards, bl_vals)
-            prob = torch.stack(logps).sum(0).exp().mean()
-            # val = torch.stack(rewards).sum(0).mean()
-            val = rewards.mean()
-            bl = bl_vals.mean()
-
-            optim.zero_grad()
-            loss.backward()
-            if args.max_grad_norm is not None:
-                grad_norm = clip_grad_norm_(chain.from_iterable(grp["params"] for grp in optim.param_groups),
-                        args.max_grad_norm)
-            optim.step()
-
-            progress.set_postfix_str("l={:.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
-                loss, prob, val, bl, grad_norm))
-
-            ep_loss += loss.item()
-            ep_prob += prob.item()
-            ep_val += val.item()
-            ep_bl += bl.item()
-            ep_norm += grad_norm
-
-    return tuple(stat / args.iter_count for stat in (ep_loss, ep_prob, ep_val, ep_bl, ep_norm))
-
-
-def test_epoch(args, test_env, learner, bl_wrapped_learner, ref_costs):
-    learner.eval()
     if args.problem_type[0] == "s":
         costs = test_env.nodes.new_zeros(test_env.minibatch_size)
+        losses = test_env.nodes.new_zeros(test_env.minibatch_size)
+        bl_losses = test_env.nodes.new_zeros(test_env.minibatch_size)
         for _ in range(100):
-            # _, _, rewards = learner(test_env)
-            actions, logps, rewards, bl_vals = bl_wrapped_learner(test_env)
-            costs -= rewards.mean() #torch.stack(rewards).sum(0).squeeze(-1)
+            if args.train_mode == 'policy':
+                actions, logps, rewards, bl_vals = bl_wrapped_learner(test_env)
+                loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
+            elif args.train_mode == 'value':
+                actions, logps, rewards, _ = policy_bl_wrapped_learner(test_env)
+                _, _, _, bl_vals = bl_wrapped_learner(test_env)
+                loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
+
+            costs += rewards.mean() #torch.stack(rewards).sum(0).squeeze(-1)
+            losses += loss.mean()
+            bl_losses += bl_loss.mean()
         costs = costs / 100
+        losses = losses / 100
+        bl_losses = bl_losses / 100
     else:
         _, _, rs = learner(test_env)
         costs = -torch.stack(rs).sum(dim = 0).squeeze(-1)
-    mean = costs.mean()
-    std = costs.std()
-    gap = (costs.to(ref_costs.device) / ref_costs - 1).mean() if ref_costs is not None else 0
 
-    print("Cost on test dataset: {:5.2f} +- {:5.2f} ({:.2%})".format(mean, std, gap))
-    return mean.item(), std.item(), gap
+    gap = (costs.to(ref_costs.device) / ref_costs - 1).mean() if ref_costs is not None else 0
+    print("Cost on test dataset: {:5.2f} +- {:5.2f} ({:.2%})".format(costs.mean(), costs.std(), gap))
+    return costs.mean().item(), losses.mean().item(), bl_losses.mean().item(), gap
 
 
 def main(args):
@@ -327,7 +308,8 @@ def main(args):
             if args.train_mode == 'policy':
                 train_stats.append( train_epoch(args, train_data, Environment, env_params, baseline, optim, dev, ep) )
             elif args.train_mode == 'value':
-                train_stats.append( train_value_epoch(args, train_data, Environment, env_params, policy_baseline, baseline, optim, dev, ep) )
+                train_stats.append( train_epoch(args, train_data, Environment, env_params, baseline, optim, dev, ep,\
+                    policy_baseline = policy_baseline) )
             else:
                 raise ValueError(f'do not support training model: {args.train_mode}')
 

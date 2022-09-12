@@ -10,8 +10,9 @@ from ._score import Scoring_CalcScore_Original, Scoring_CalcScore_DNN, Scoring_C
 
 class CBBA():
     
-    def __init__(self, env, data, scorefun, **kwargs):
+    def __init__(self, args, env, data, scorefun, **kwargs):
         # define CBBA constants
+        self.args = args
         self.env = env
         vehs, custs = data
         self.CBBA_Params_N = np.size(vehs,1) # number of agents
@@ -426,8 +427,9 @@ class CBBA():
                         else:
                             taskNext = CBBA_Data['path'][j:L[0][0]].tolist()
                             timeNext = CBBA_Data['times'][j:L[0][0]].tolist()
-                        
-                        score_old, score_new, minStart, maxStart = Scoring_CalcScore_Original(self.env, n, self.custs, self.vehs, m, 
+
+
+                        score_old, score_new, minStart, maxStart = Scoring_CalcScore_Original(self.args,self.env, n, self.custs, self.vehs, m, 
                                                                                  taskPrev,timePrev,
                                                                                  taskNext,timeNext,
                                                                                  robust_greedy = robust_greedy)
@@ -465,7 +467,7 @@ class CBBA():
             taskNext = CBBA_Data['path'][:j].tolist()
             timeNext = CBBA_Data['times'][:j].tolist()
                     
-            score_old, score_new, minStart, maxStart = Scoring_CalcScore_DNN(self.env, n, self.custs, self.vehs, \
+            score_old, score_new, minStart, maxStart = Scoring_CalcScore_DNN(self.args, self.env, n, self.custs, self.vehs, \
                 self.value_model, unAllocatedTask, taskPrev, timePrev, taskNext,timeNext)
             original_score = np.sum(CBBA_Data['scores'][:L[0][0]])
             score = score_new - original_score

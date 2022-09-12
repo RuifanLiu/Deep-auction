@@ -21,15 +21,15 @@ def routes_to_string(routes):
 def export_train_test_stats(args, start_ep, train_stats, test_stats):
     fpath = os.path.join(args.output_dir, "loss_gap.csv")
     with open(fpath, 'a') as f:
-        f.write( (' '.join("{: >16}" for _ in range(9)) + '\n').format(
-            "#EP", "#LOSS", "#PROB", "#VAL", "#BL", "#NORM", "#TEST_MU", "#TEST_STD", "#TEST_GAP"
+        f.write( (' '.join("{: >16}" for _ in range(11)) + '\n').format(
+            "#EP", "#LOSS", '#BL_LOSS', "#PROB", "#VAL", "#BL", "#NORM", "#TEST_MU", "#TEST_LOSS", "TEST_BL_LOSS", "#TEST_GAP"
             ))
         for ep, (tr,te) in enumerate( zip_longest(train_stats, test_stats, fillvalue=float('nan')), start = start_ep):
             if test_stats:
-                f.write( ("{: >16d}" + ' '.join("{: >16.3g}" for _ in range(8)) + '\n').format(
+                f.write( ("{: >16d}" + ' '.join("{: >16.5g}" for _ in range(10)) + '\n').format(
                     ep, *tr, *te))
             else:
-                f.write( ("{: >16d}" + ' '.join("{: >16.3g}" for _ in range(5)) + '\n').format(
+                f.write( ("{: >16d}" + ' '.join("{: >16.5g}" for _ in range(5)) + '\n').format(
                     ep, *tr))
 
 
