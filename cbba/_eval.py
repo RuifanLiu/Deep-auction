@@ -26,7 +26,7 @@ def eval_routes_drl(args, Environment, batch, policy_model, assignments):
             data = PaddedData(vehs=vehs[:,n,:][:,None,:], nodes=trunct_custs, padding_size=policy_model.cust_count+1)
             dyna = Environment(data, None, None, None, *env_params)
             # acts, logps, rew = drl_model(dyna)
-            acts1, logps1, rew1, bls = policy_model(dyna) 
+            acts1, logps1, rew1, bls = policy_model(dyna, greedy=True) 
 
             rewards += rew1.mean()
     

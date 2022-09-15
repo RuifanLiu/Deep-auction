@@ -45,24 +45,32 @@ def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, 
             if args.train_mode == 'policy':
                 actions, logps, rewards, bl_vals = bl_wrapped_learner(dyna)
                 loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
+                prob = torch.stack(logps).sum(0).exp().mean()
+                val = rewards.mean()            
+                bl = bl_vals.mean()
+                optim.zero_grad()
+                loss.backward()
+                if args.max_grad_norm is not None:
+                    grad_norm = clip_grad_norm_(chain.from_iterable(grp["params"] for grp in optim.param_groups),
+                            args.max_grad_norm)
+                optim.step()
+                progress.set_postfix_str("l={:.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
+                    loss, prob, val, bl, grad_norm))
             elif args.train_mode == 'value':
                 actions, logps, rewards, _ = policy_bl_wrapped_learner(dyna)
                 _, _, _, bl_vals = bl_wrapped_learner(dyna)
                 loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
-                
-            prob = torch.stack(logps).sum(0).exp().mean()
-            val = rewards.mean()            
-            bl = bl_vals.mean()
-
-            optim.zero_grad()
-            loss.backward()
-            if args.max_grad_norm is not None:
-                grad_norm = clip_grad_norm_(chain.from_iterable(grp["params"] for grp in optim.param_groups),
-                        args.max_grad_norm)
-            optim.step()
-
-            progress.set_postfix_str("l={:.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
-                loss, prob, val, bl, grad_norm))
+                prob = torch.stack(logps).sum(0).exp().mean()
+                val = rewards.mean()            
+                bl = bl_vals.mean()
+                optim.zero_grad()
+                bl_loss.backward()
+                if args.max_grad_norm is not None:
+                    grad_norm = clip_grad_norm_(chain.from_iterable(grp["params"] for grp in optim.param_groups),
+                            args.max_grad_norm)
+                optim.step()
+                progress.set_postfix_str("l={:.4g},vl={:9.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
+                    loss, bl_loss, prob, val, bl, grad_norm))
 
             ep_loss += loss.item()
             ep_bl_loss += bl_loss.item()
@@ -80,32 +88,32 @@ def test_epoch(args, test_env, learner, bl_wrapped_learner, ref_costs, **kwargs)
         policy_bl_wrapped_learner = kwargs.get('policy_baseline')
         policy_bl_wrapped_learner.learner.eval()
 
-    if args.problem_type[0] == "s":
-        costs = test_env.nodes.new_zeros(test_env.minibatch_size)
-        losses = test_env.nodes.new_zeros(test_env.minibatch_size)
-        bl_losses = test_env.nodes.new_zeros(test_env.minibatch_size)
-        for _ in range(100):
-            if args.train_mode == 'policy':
-                actions, logps, rewards, bl_vals = bl_wrapped_learner(test_env)
-                loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
-            elif args.train_mode == 'value':
-                actions, logps, rewards, _ = policy_bl_wrapped_learner(test_env)
-                _, _, _, bl_vals = bl_wrapped_learner(test_env)
-                loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
-
-            costs += rewards.mean() #torch.stack(rewards).sum(0).squeeze(-1)
-            losses += loss.mean()
-            bl_losses += bl_loss.mean()
-        costs = costs / 100
-        losses = losses / 100
-        bl_losses = bl_losses / 100
-    else:
-        _, _, rs = learner(test_env)
-        costs = -torch.stack(rs).sum(dim = 0).squeeze(-1)
+    with torch.no_grad():
+        if args.problem_type[0] == "s":
+            losses = 0
+            bl_losses = 0
+            costs = []
+            for _ in range(100):
+                if args.train_mode == 'policy':
+                    actions, logps, rewards, bl_vals = bl_wrapped_learner(test_env, greedy=True)
+                    loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
+                elif args.train_mode == 'value':
+                    actions, logps, rewards, _ = policy_bl_wrapped_learner(test_env, greedy=True)
+                    _, _, _, bl_vals = bl_wrapped_learner(test_env)
+                    loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
+                costs.append( rewards.mean() )
+                losses += loss.item()
+                bl_losses += bl_loss.item()
+            costs = torch.stack(costs)
+            losses = losses / 100
+            bl_losses = bl_losses / 100
+        else:
+            _, _, rs = learner(test_env)
+            costs = -torch.stack(rs).sum(dim = 0).squeeze(-1)
 
     gap = (costs.to(ref_costs.device) / ref_costs - 1).mean() if ref_costs is not None else 0
     print("Cost on test dataset: {:5.2f} +- {:5.2f} ({:.2%})".format(costs.mean(), costs.std(), gap))
-    return costs.mean().item(), losses.mean().item(), bl_losses.mean().item(), gap
+    return costs.mean().item(), losses, bl_losses, gap
 
 
 def main(args):
@@ -268,10 +276,10 @@ def main(args):
 
     # SEPARATE POLICY MODEL FOR VALUE TRAINING MODE
     if args.train_mode == 'value':
-        verbose_print("Initialize the value network separately...",
+        verbose_print("Initialize the policy network separately...",
             end = " ", flush = True)
         if args.baseline_type == "critic":
-            verbose_print("Initializing attention model...",
+            verbose_print("Initializing policy attention model...",
                 end = " ", flush = True)
             # ATTENTION MODEL
             policy_learner = AttentionLearner(
@@ -286,7 +294,7 @@ def main(args):
             policy_learner.to(dev)
             verbose_print("Done.")
             # BASELINE
-            verbose_print("Initializing '{}' baseline...".format(
+            verbose_print("Initializing '{}' baseline for policy model...".format(
                 args.baseline_type),
                 end = " ", flush = True)
             policy_baseline = CriticBaseline(policy_learner, args.customers_count, args.critic_use_qval, args.loss_use_cumul)
@@ -307,13 +315,13 @@ def main(args):
         for ep in range(start_ep, args.epoch_count):
             if args.train_mode == 'policy':
                 train_stats.append( train_epoch(args, train_data, Environment, env_params, baseline, optim, dev, ep) )
+                test_stats.append( test_epoch(args, test_env, learner, baseline, ref_costs=None) )
             elif args.train_mode == 'value':
                 train_stats.append( train_epoch(args, train_data, Environment, env_params, baseline, optim, dev, ep,\
                     policy_baseline = policy_baseline) )
+                test_stats.append( test_epoch(args, test_env, learner, baseline, ref_costs=None, policy_baseline = policy_baseline) )
             else:
                 raise ValueError(f'do not support training model: {args.train_mode}')
-
-            test_stats.append( test_epoch(args, test_env, learner, baseline, None) )
 
             if args.rate_decay is not None:
                 lr_sched.step()

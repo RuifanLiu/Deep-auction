@@ -87,17 +87,20 @@ class VRPTW_Dataset(VRP_Dataset):
         return dataset
 
     def normalize(self):
+        loc_scl = self.loc_scl
+        cap_scl = self.cap_scl
+        t_scl = self.t_scl
+
         # loc_scl, loc_off = self.nodes[:,:,:2].max().item(), self.nodes[:,:,:2].min().item()
         # loc_scl -= loc_off
         # cap_scl = self.vehs[:,:,0].max().item() 
         # t_scl = self.nodes[:,:,4].max().item() 
-
         # self.nodes[:,:,:2] -= loc_off
-        self.nodes[:,:,:2] /= self.loc_scl
-        self.nodes[:,:, 2] /= self.cap_scl
-        self.nodes[:,:,4:] /= self.t_scl
+        self.nodes[:,:,:2] /= loc_scl
+        self.nodes[:,:, 2] /= cap_scl
+        self.nodes[:,:,4:] /= t_scl
 
-        self.vehs[:,:,0] /= self.cap_scl
-        self.vehs[:,:,1] *= self.t_scl / self.loc_scl # 480/100
+        self.vehs[:,:,0] /= cap_scl
+        self.vehs[:,:,1] *= t_scl / loc_scl # 480/100
 
-        return self.loc_scl, self.t_scl
+        return loc_scl, t_scl

@@ -73,8 +73,8 @@ class CBBA():
             elif(T-lastTime > 2*self.CBBA_Params_N):
                 print('Algorithm did not converge due to communication trouble');
                 doneFlag = 1
-            elif T>20:
-                print('CBBA Loop exceed 20');
+            elif T>50:
+                print('CBBA Loop exceed 50');
                 self.CBBA_Communicate(t,T)
                 for n in range(self.CBBA_Params_N):
                     self.CBBA_BundleRemove(n)

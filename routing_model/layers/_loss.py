@@ -26,8 +26,8 @@ def reinforce_loss(logprobs, rewards, baseline = None, weights = None, discount 
         loss *= (rewards - baseline.detach())
 
         bl_loss = 0
-        if baseline.requires_grad:
-            bl_loss += F.smooth_l1_loss(baseline, rewards)
+        # if baseline.requires_grad:
+        bl_loss += F.smooth_l1_loss(baseline, rewards)
         loss += bl_loss
     else:
         if baseline is None:

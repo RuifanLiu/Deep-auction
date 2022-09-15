@@ -31,9 +31,10 @@ class CriticBaseline(Baseline):
         val = self.project(compat)
         return val.squeeze(1)
 
-    def __call__(self, vrp_dynamics):
-        self.learner._encode_customers(vrp_dynamics.nodes)
+    def __call__(self, vrp_dynamics, greedy=False):
         vrp_dynamics.reset()
+        self.learner._encode_customers(vrp_dynamics.nodes, vrp_dynamics.cust_mask)
+        # self.learner._encode_customers(vrp_dynamics.nodes)
         actions, logps, rewards, bl_vals = [], [], [], []
         while not vrp_dynamics.done:
             veh_repr = self.learner._repr_vehicle(
@@ -42,7 +43,10 @@ class CriticBaseline(Baseline):
                     vrp_dynamics.mask)
             compat = self.learner._score_customers(veh_repr)
             logp = self.learner._get_logp(compat, vrp_dynamics.cur_veh_mask)
-            cust_idx = logp.exp().multinomial(1)
+            if greedy:
+                cust_idx = logp.argmax(dim = 1, keepdim = True)
+            else:
+                cust_idx = logp.exp().multinomial(1)
             if not(self.use_cumul and bl_vals):
                 bl_vals.append( self.eval_step(vrp_dynamics, compat, cust_idx) )
             actions.append( (vrp_dynamics.cur_veh_idx, cust_idx) )
