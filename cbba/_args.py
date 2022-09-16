@@ -9,12 +9,12 @@ SEED = None
 
 PROBLEM = "svrptw"
 CUST_RANGE = (10,101)
-VEH_RANGE = (2,3)
+VEH_RANGE = (5,6)
 VALID_DATASET = 'data/'
 ITERATION = 10
 
-VALUE_MODEL = @'vrp_output/SVRPTWn100m1_220905-1432/chkpt_ep150.pyth'
-DRL_MODEL = @'vrp_output/SVRPTWn100m1_220902-1529/chkpt_ep100.pyth'
+VALUE_MODEL = 'vrp_output/SVRPTWn100m1_220916-1722/chkpt_ep150.pyth'
+DRL_MODEL = 'vrp_output/SVRPTWn100m1_220915-1652/chkpt_ep100.pyth'
 
 PEND_COST = 2
 PEND_GROWTH = None

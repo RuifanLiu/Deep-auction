@@ -57,7 +57,7 @@ def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, 
                 progress.set_postfix_str("l={:.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
                     loss, prob, val, bl, grad_norm))
             elif args.train_mode == 'value':
-                actions, logps, rewards, _ = policy_bl_wrapped_learner(dyna)
+                actions, logps, rewards, _ = policy_bl_wrapped_learner(dyna, greedy=True)
                 _, _, _, bl_vals = bl_wrapped_learner(dyna)
                 loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
                 prob = torch.stack(logps).sum(0).exp().mean()
