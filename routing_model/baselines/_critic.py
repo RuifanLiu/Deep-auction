@@ -20,8 +20,9 @@ class CriticBaseline(Baseline):
         return val.squeeze(1)
     
     def eval_init(self, vrp_dynamics):
-        self.learner._encode_customers(vrp_dynamics.nodes)
         vrp_dynamics.reset()
+        self.learner._encode_customers(vrp_dynamics.nodes, vrp_dynamics.cust_mask)
+
         veh_repr = self.learner._repr_vehicle(
                     vrp_dynamics.vehicles,
                     vrp_dynamics.cur_veh_idx,

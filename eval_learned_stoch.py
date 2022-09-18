@@ -7,6 +7,7 @@ from routing_model.baselines import *
 import torch
 from torch.utils.data import DataLoader
 from cbba._data_util import PaddedData
+from cbba._eval import eval_routes_drl
 
 dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 ROLLOUTS = 100
@@ -17,7 +18,7 @@ with torch.no_grad():
         m = 1
         out_dir = "./results/s_cvrptw_n{}m{}/".format(n, m)
         # data_path = "./train_data/s_cvrptw_n1-{}m{}/norm_data.pyth".format(n, m)
-        model_path = 'vrp_output/SVRPTWn100m1_220902-1529/chkpt_ep100.pyth'
+        model_path = 'vrp_output/SVRPTWn100m1_220915-1652/chkpt_ep100.pyth'
 
         gen_params = [10, 1, (100,100), (1, 3), 0, (0, 101), (0, 0), (1, 1),\
             480, (10, 31), 1.0, (30, 91)]
@@ -47,9 +48,8 @@ with torch.no_grad():
                 vehs, custs, mask = batch[0].to(dev), batch[1].to(dev), batch[2].to(dev)
 
             padded_data = PaddedData(vehs=vehs, nodes=custs, padding_size=bl_wrapped_learner.cust_count+1)
-            env = SVRPTW_Environment(padded_data, None, None, None, *[2, 0.9, 0.1, 0.05, 0.5, 0.2])
-            # env = SVRPTW_Environment(batch, vehs, custs, mask, *[2, 0.9, 0.1, 0.05, 0.5, 0.2])
-            actions, logps, rewards, bl_vals = bl_wrapped_learner(env)
+            env = SVRPTW_Environment(padded_data, None, None, None, *[2, 0.9, 0.2, 0.05, 0.5, 0.2])
+            actions, logps, rewards, bl_vals = bl_wrapped_learner(env, greedy=True)
             print(f"actions from baseline = {actions}")
             print(f"rewards from baseline = {rewards}")
             # _, _, rewards = learner(env)

@@ -72,7 +72,8 @@ def main(args):
 
     with torch.no_grad():
         for n in range(*args.customers_range, 10):
-            for m in range(*args.vehicles_range, 1):
+            # for m in range(*args.vehicles_range, 1):
+                m = n//5
                 data_path = "./data_sample10/s_cvrptw_n{}m{}/norm_data.pyth".format(n, m)    
                 data = torch.load(data_path)
                 loader = DataLoader(data, batch_size = args.valid_batch_size)
@@ -108,7 +109,7 @@ def main(args):
                 running_times.append(np.mean(run_time))
 
                 with open(fpath, 'a') as f:
-                    f.write( ("{: >16d}" +"{:>16d}" + ' '.join("{: >16.5g}" for _ in range(8)) + '\n').format(
+                    f.write( ("{: >16d}" +"{:>16d}" + ' '.join("{: >16.5g}" for _ in range(7)) + '\n').format(
                         n, m, *dnn_cbba_stats, *cbba_stats, *running_times))
     # export_cbba_rewards(args.output_dir, header, cbba_stats, dnn_cbba_stats)
     
