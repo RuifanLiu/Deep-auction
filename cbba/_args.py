@@ -8,17 +8,18 @@ NO_CUDA = False
 SEED = None
 
 PROBLEM = "svrptw"
-CUST_RANGE = (10,101)
+CUST_RANGE = (10,51) 
 VEH_RANGE = (5,6)
 VALID_DATASET = 'data/'
 ITERATION = 10
 
-VALUE_MODEL = 'vrp_output/SVRPTWn100m1_220916-1722/chkpt_ep150.pyth'
-DRL_MODEL = 'vrp_output/SVRPTWn100m1_220915-1652/chkpt_ep100.pyth'
+VALUE_MODEL = 'vrp_output/SVRPTWn10m1_220919-0034/chkpt_ep70.pyth'
+DRL_MODEL = 'vrp_output/SVRPTWn10m1_220918-2341/chkpt_ep50.pyth'
 
 PEND_COST = 2
 PEND_GROWTH = None
-LATE_DISCOUNT = 0.9
+# LATE_DISCOUNT = 0.9
+LATE_COST = 1
 LATE_GROWTH = None
 SPEED_VAR = 0.2
 LATE_PROB = 0.05
@@ -57,7 +58,7 @@ def parse_args(argv = None):
     group = parser.add_argument_group("VRP Environment parameters")
     group.add_argument("--pending-cost", type = float, default = PEND_COST)
     group.add_argument("--pend-cost-growth", type = float, default = PEND_GROWTH)
-    group.add_argument("--late-discount", type = float, default = LATE_DISCOUNT)
+    group.add_argument("--late-cost", type = float, default = LATE_COST)
     group.add_argument("--late-cost-growth", type = float, default = LATE_GROWTH)
     group.add_argument("--speed-var", type = float, default = SPEED_VAR)
     group.add_argument("--late-prob", type = float, default = LATE_PROB)

@@ -11,7 +11,7 @@ from ._score import Scoring_CalcScore_Original, Scoring_CalcScore_DNN, Scoring_C
 
 
 class CBBA():
-    
+    DEFAULT_BID = -100 # for negative reward function
     def __init__(self, args, env, data, scorefun, **kwargs):
         # define CBBA constants
         self.args = args
@@ -30,9 +30,9 @@ class CBBA():
             info['path']       = -np.ones(self.CBBA_Params_MAXDEPTH, dtype=int)
             info['times']      = -np.ones(self.CBBA_Params_MAXDEPTH, dtype=int)
             info['scores']     = -np.ones(self.CBBA_Params_MAXDEPTH)
-            info['bids']       = np.zeros(self.CBBA_Params_M)
+            info['bids']       = self.DEFAULT_BID*np.ones(self.CBBA_Params_M)
             info['winners']    = -np.ones(self.CBBA_Params_M)
-            info['winnerBids'] = np.zeros(self.CBBA_Params_M)
+            info['winnerBids'] = self.DEFAULT_BID*np.ones(self.CBBA_Params_M)
             self.CBBA_Data.append(info)
 
         self.Scoring_CalcScore = scorefun
@@ -103,7 +103,8 @@ class CBBA():
         # Compute the total score of the CBBA assignment
         Total_Score = 0
         for n in range(self.CBBA_Params_N):
-            # print(self.CBBA_Data[n]['scores'])
+            print(self.CBBA_Data[n]['bundle'])
+            print(self.CBBA_Data[n]['scores'])
             for m in range(self.CBBA_Params_MAXDEPTH):
                 if self.CBBA_Data[n]['bundle'][m]>-1:
                     Total_Score = Total_Score + self.CBBA_Data[n]['scores'][m]
@@ -189,12 +190,12 @@ class CBBA():
                         # Entry 6: Reset
                         elif z[i,j] == k: 
                             z[i,j] = -1
-                            y[i,j] = 0
+                            y[i,j] = self.DEFAULT_BID
                         # Entry 7: Reset or Leave
                         elif z[i,j] > -1: 
                             if old_t[k,z[i,j]] > t[i,z[i,j]]:  # Reset
                                 z[i,j] = -1
-                                y[i,j] = 0
+                                y[i,j] = self.DEFAULT_BID
                             
                         # Entry 8: Leave
                         elif z[i,j] == -1:
@@ -222,7 +223,7 @@ class CBBA():
                                 y[i,j] = old_y[k,j]
                             else:  # Reset
                                 z[i,j] = -1
-                                y[i,j] = 0
+                                y[i,j] = self.DEFAULT_BID
                             
                         # Entry 11: Update or Leave
                         elif z[i,j] == old_z[k,j]:
@@ -238,7 +239,7 @@ class CBBA():
                                     y[i,j] = old_y[k,j]
                                 elif old_t[k,old_z[k,j]] < t[i,old_z[k,j]]: # Reset
                                     z[i,j] = -1
-                                    y[i,j] = 0
+                                    y[i,j] = self.DEFAULT_BID
                                 else:
                                     print('Should not be here, please revise')
 
@@ -320,7 +321,7 @@ class CBBA():
                     if self.CBBA_Data[n]['winners'][self.CBBA_Data[n]['bundle'][j]] == self.CBBA_Data[n]['agentIndex']:
                         #  Remove from winner list if in there
                         self.CBBA_Data[n]['winners'][self.CBBA_Data[n]['bundle'][j]] = -1
-                        self.CBBA_Data[n]['winnerBids'][self.CBBA_Data[n]['bundle'][j]] = 0
+                        self.CBBA_Data[n]['winnerBids'][self.CBBA_Data[n]['bundle'][j]] = self.DEFAULT_BID
                     #  Clear from path and times vectors and remove from bundle
                     idx = np.argwhere(self.CBBA_Data[n]['path'] == self.CBBA_Data[n]['bundle'][j])
                     
@@ -339,7 +340,9 @@ class CBBA():
         CBBA_Data = self.CBBA_Data[n]
         bundleFull = len(np.argwhere(CBBA_Data['bundle']==-1)) == 1 # when all nodes except depot are in bundle
         value = 1
-        while(value>0 and not bundleFull):
+        still_bidding = 1
+        while(still_bidding and not bundleFull):
+        # while not bundleFull:
             CBBA_Data, bestIndxs, taskTimes, CBBA_double_bids = self.CBBA_ComputeBids(CBBA_Data,n)
             D1 = (CBBA_Data['bids'] - CBBA_Data['winnerBids'] > epsilon)
             D2 = (abs(CBBA_Data['bids'] - CBBA_Data['winnerBids']) <= epsilon)
@@ -352,18 +355,18 @@ class CBBA():
                 D = np.logical_or(np.logical_and(D1, D4), np.logical_and(D2, D3))
 
             # D = D1
-            value = max(np.multiply(D, CBBA_Data['bids']))
-            bestTask = np.argwhere(np.multiply(D, CBBA_Data['bids'])==value)
 
-            if value>0:
+            if sum(D)>0:
+                value = max(CBBA_Data['bids'][D])
+                bestTask = np.argwhere(np.multiply(D, CBBA_Data['bids'])==value)
+            # if value>0:
                 newBid = 1
                 allvalues = np.argwhere(np.multiply(D, CBBA_Data['bids'])==value)
                 if len(allvalues) == 1:
                     bestTask = allvalues
                 else:
                     bestTask = allvalues[0]
-                
-
+            
                 if CBBA_double_bids is None:
                     CBBA_Data['winners'][bestTask] = CBBA_Data['agentIndex']
                     CBBA_Data['winnerBids'][bestTask] = CBBA_Data['bids'][bestTask]
@@ -383,8 +386,8 @@ class CBBA():
                     CBBA_Data['scores'] = self.CBBA_InsertInList(CBBA_Data['scores'], CBBA_double_bids[bestTask], bestIndxs[bestTask])
                     length = len(np.argwhere(CBBA_Data['bundle']>-1))
                     CBBA_Data['bundle'][length] = bestTask
-
-                
+            else:
+                still_bidding = 0
             bundleFull = len(np.argwhere(CBBA_Data['bundle']==-1)) == 1 
             # print('bundle:',CBBA_Data['bundle'])
             # print('CBBA_bid:',CBBA_Data['bids'])
@@ -399,7 +402,7 @@ class CBBA():
         L = np.argwhere(CBBA_Data['path']==-1)
         if len(L)==0:
             return
-        CBBA_Data['bids'] = np.zeros(self.CBBA_Params_M)
+        CBBA_Data['bids'] = self.DEFAULT_BID*np.ones(self.CBBA_Params_M)
         bestIdxs = np.zeros(self.CBBA_Params_M)
         taskTimes = np.zeros(self.CBBA_Params_M)
 
@@ -413,7 +416,7 @@ class CBBA():
                 robust_greedy = True
             for m in range(1, self.CBBA_Params_M):
                 if not len(np.argwhere(CBBA_Data['path']==m)):
-                    bestBid = 0
+                    bestBid = self.DEFAULT_BID
                     bestIdx = 0
                     bestTime = -1
                     for j in range(L[0][0]+1):
@@ -448,7 +451,7 @@ class CBBA():
                                 bestIndex = j
                                 bestTime = minStart
 
-                    if bestBid > 0:
+                    if bestBid > self.DEFAULT_BID:
                         # Submodular Wrapper
                         existingBids = CBBA_Data['scores'][:L[0][0]]
                         bestBid = min(np.append(existingBids,bestBid))
@@ -481,7 +484,7 @@ class CBBA():
             score = [min([i,minExistingBids]) for i in score]
             
             idx = 0
-            margin_thershold = -100
+            margin_thershold = self.DEFAULT_BID
             for m in unAllocatedTask:
                 if score[idx]>margin_thershold:
                     CBBA_Data['bids'][m] = score[idx]

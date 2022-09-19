@@ -35,7 +35,7 @@ def main(args):
     drl_model.load_state_dict(chkpt["model"])
     drl_model.eval()
     drl_model.greedy = True
-    policy_model = CriticBaseline(drl_model, cust_count = 100, use_qval=False, use_cumul_reward=True)
+    policy_model = CriticBaseline(drl_model, cust_count = 10, use_qval=False, use_cumul_reward=True)
     policy_model.load_state_dict(chkpt['critic'])
 
     chkpt_1 = torch.load(args.value_model, map_location = 'cpu')
@@ -43,13 +43,13 @@ def main(args):
     value_drl_model.load_state_dict(chkpt_1["model"])
     value_drl_model.eval()
     value_drl_model.greedy = True
-    value_model = CriticBaseline(value_drl_model, cust_count = 100, use_qval=False, use_cumul_reward=True)
+    value_model = CriticBaseline(value_drl_model, cust_count = 10, use_qval=False, use_cumul_reward=True)
     value_model.load_state_dict(chkpt_1['critic'])
 
     det_Environment = VRPTW_Environment
     sto_Environment = SVRPTW_Environment
     
-    sto_env_params = [args.pending_cost, args.late_discount, args.speed_var, args.late_prob, args.slow_down, args.late_var]
+    sto_env_params = [args.pending_cost, args.late_cost, args.speed_var, args.late_prob, args.slow_down, args.late_var]
 
     verbose_print("Creating output dir...",
         end = " ", flush = True)
@@ -74,7 +74,7 @@ def main(args):
         for n in range(*args.customers_range, 10):
             # for m in range(*args.vehicles_range, 1):
                 m = n//5
-                data_path = "./data_sample10/s_cvrptw_n{}m{}/norm_data.pyth".format(n, m)    
+                data_path = "./data_sample10_1/s_cvrptw_n{}m{}/norm_data.pyth".format(n, m)    
                 data = torch.load(data_path)
                 loader = DataLoader(data, batch_size = args.valid_batch_size)
 

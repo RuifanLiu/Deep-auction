@@ -115,7 +115,6 @@ def test_epoch(args, test_env, learner, bl_wrapped_learner, ref_costs, **kwargs)
     print("Cost on test dataset: {:5.2f} +- {:5.2f} ({:.2%})".format(costs.mean(), costs.std(), gap))
     return costs.mean().item(), losses, bl_losses, gap
 
-
 def main(args):
     dev = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
     if args.rng_seed is not None:
@@ -192,7 +191,7 @@ def main(args):
             }.get(args.problem_type)
     env_params = [args.pending_cost]
     if args.problem_type != "vrp":
-        env_params.append(args.late_discount)
+        env_params.append(args.late_cost)
         if args.problem_type != "vrptw":
             env_params.extend( [args.speed_var, args.late_prob, args.slow_down, args.late_var] )
     test_env = Environment(test_data, None, None, None, *env_params)

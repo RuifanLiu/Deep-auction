@@ -76,12 +76,14 @@ def det_reward_func(args, custs, veh, task_list):
         dist = np.linalg.norm(dest[:2]-vehicles[:2], axis=-1)
         tt = dist / vehicles[3]
         arv = np.max([vehicles[4] + tt, dest[4]])
-        late = np.clip( arv - dest[4], 0, None)
+        late = np.clip( arv - dest[5], 0, None)
         vehicles[:2] = dest[:2]
         vehicles[2] -= dest[2]
         vehicles[4] = arv + dest[6]
-        finish = (vehicles[4] <= dest[5])
-        rewards += finish * dest[3] * np.exp(-args.late_discount*late)
+
+        rewards += -dist - args.late_cost*late
+        # finish = (vehicles[4] <= dest[5])
+        # rewards += finish * dest[3] * np.exp(-args.late_discount*late)
         if cust_idx == 0:
             done = True
     return rewards, None
@@ -89,7 +91,7 @@ def det_reward_func(args, custs, veh, task_list):
 def sample_reward_func(args, Environment, custs, veh, task_list, sample=100):
 
     if issubclass(Environment, VRPTW_Environment):
-        env_params = [args.pending_cost, args.late_discount]
+        env_params = [args.pending_cost, args.late_cost]
         if issubclass(Environment, SVRPTW_Environment):
             env_params.extend([args.speed_var, args.late_prob, args.slow_down, args.late_var])
 
@@ -118,9 +120,9 @@ def Scoring_CalcScore_Original(args, Environment, n, custs, vehs, m, taskPrev, t
     else:
         output_reward_new, output_time_new = sample_reward_func(args, Environment, custs, vehs[:,n,:], newTaskList)
     # t_end = time.perf_counter()
-    # print('oldTaskList:',oldTaskList)
-    # print('newTaskList:',newTaskList)
     # print('cal_time:',t_end-t_start)
+    # print('new task:',m)
+    # print('newTaskList:',newTaskList)
     # print('output_reward_new:',output_reward_new)
     # print('\n')
 
@@ -134,7 +136,7 @@ def Scoring_CalcScore_DNN(args, Environment, n, custs, vehs, value_model, unAllo
     newTaskListList = [[0] + taskPrev + [m] + taskNext for m in unAllocatedTask]
 
     if issubclass(Environment, VRPTW_Environment):
-        env_params = [args.pending_cost, args.late_discount]
+        env_params = [args.pending_cost, args.late_cost]
         if issubclass(Environment, SVRPTW_Environment):
             env_params.extend([args.speed_var, args.late_prob, args.slow_down, args.late_var])
 

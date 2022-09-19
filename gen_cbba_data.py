@@ -30,13 +30,13 @@ for n,m in ((10,2), (20,4), (50,10)):
     data.normalize()
     torch.save(data, os.path.join(out_dir, "norm_data.pyth"))
 '''
-
+gen_params = [(100,100), (1,1), None, (0,101), (0,0), (1,1), 480, (10,31), 1.0, (30,91)]
 # S-CVRPTW Data (more tw)
-for n in range(10,101,10):
-    for m in range(2,11,1):
-        out_dir = "data_sample10/s_cvrptw_n{}m{}".format(n,m)
+for n in range(10,11,10):
+    for m in range(2,3,1):
+        out_dir = "data_sample10_1/s_cvrptw_n{}m{}".format(n,m)
         os.makedirs(out_dir, exist_ok = True)
-        data = VRPTW_Dataset.generate(BATCH_SIZE, n, m, tw_ratio = 1.0)
+        data = VRPTW_Dataset.generate(BATCH_SIZE, n, m, *gen_params)
         data.normalize()
         torch.save(data, os.path.join(out_dir, "norm_data.pyth"))
 '''

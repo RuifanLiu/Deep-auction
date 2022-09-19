@@ -10,7 +10,7 @@ def eval_routes_drl(args, Environment, batch, policy_model, assignments):
     _, n_agent, _ = vehs.size()
 
     if issubclass(Environment, VRPTW_Environment):
-        env_params = [args.pending_cost, args.late_discount]
+        env_params = [args.pending_cost, args.late_cost]
         if issubclass(Environment, SVRPTW_Environment):
             env_params.extend([args.speed_var, args.late_prob, args.slow_down, args.late_var])
 
@@ -27,7 +27,6 @@ def eval_routes_drl(args, Environment, batch, policy_model, assignments):
             dyna = Environment(data, None, None, None, *env_params)
             # acts, logps, rew = drl_model(dyna)
             acts1, logps1, rew1, bls = policy_model(dyna, greedy=True) 
-
             rewards += rew1.mean()
     
     return rewards/iterations, None
@@ -38,7 +37,7 @@ def eval_apriori_routes(args, Environment, batch, assignments):
     _, n_agent, _ = vehs.size()
 
     if issubclass(Environment, VRPTW_Environment):
-        env_params = [args.pending_cost, args.late_discount]
+        env_params = [args.pending_cost, args.late_cost]
         if issubclass(Environment, SVRPTW_Environment):
             env_params.extend([args.speed_var, args.late_prob, args.slow_down, args.late_var])
 
@@ -46,11 +45,12 @@ def eval_apriori_routes(args, Environment, batch, assignments):
         task_list_end = np.argwhere(assignments[n]==-1)
         assignments[n] = assignments[n][:task_list_end[0][0]] if len(task_list_end) else assignments[n]
     
-    task_list = torch.tensor([0] + list(np.concatenate(assignments)))
-    mask = custs.new_ones((batch_size, nodes_count), dtype = torch.bool)\
-                .scatter(1,torch.tensor([0]+list(task_list))[None,:],0)
-    data = PaddedData(vehs=vehs, nodes=custs, cust_mask= mask)
+    # task_list = torch.tensor([0] + list(np.concatenate(assignments)))
+    # mask = custs.new_ones((batch_size, nodes_count), dtype = torch.bool)\
+    #             .scatter(1,torch.tensor([0]+list(task_list))[None,:],0)
+    data = PaddedData(vehs=vehs, nodes=custs, cust_mask= None)
     dyna = Environment(data, None, None, None, *env_params)
+    # dyna = Environment(batch, vehs, custs, None, *env_params)
     
     rewards = 0
     iterations = 100
@@ -66,3 +66,15 @@ def eval_apriori_routes(args, Environment, batch, assignments):
         rewards += torch.stack(rew).sum(dim = 0).squeeze(-1)
     
     return rewards/iterations, None
+
+
+    for c in range(rollout_count):
+        dyna.reset()
+        routes_it = [[_pad_with_zeros(route) for route in inst_routes] for inst_routes in routes]
+        rewards = []
+        while not dyna.done:
+            cust_idx = dyna.nodes.new_tensor([[next(routes_it[n][i.item()])]
+                for n,i in enumerate(dyna.cur_veh_idx)], dtype = torch.int64)
+            rewards.append( dyna.step(cust_idx) )
+        mean_cost += -torch.stack(rewards).sum(dim = 0).squeeze(-1)
+    return mean_cost / rollout_count

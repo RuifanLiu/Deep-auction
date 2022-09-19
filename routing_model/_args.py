@@ -8,24 +8,25 @@ NO_CUDA = False
 SEED = None
 
 PROBLEM = "svrptw"
-CUST_COUNT = 100
+CUST_COUNT = 10
 VEH_COUNT = 1
 VEH_CAPA_RANGE = (100, 100)
-VEH_SPEED_RANGE = (1, 3)
+VEH_SPEED_RANGE = (1, 1)
 HORIZON = 480
 MIN_CUST_COUNT = 0
 LOC_RANGE = (0,101)
 DEM_RANGE = (0,0)
 REW_RANGE = (1,1)
 DUR_RANGE = (10,31)
-TW_RATIO = 1.0
+TW_RATIO = (0.25,0.5,0.75,1.0)
 TW_RANGE = (30,91)
 DEG_OF_DYN = (0.1,0.25,0.5,0.75)
 APPEAR_EARLY_RATIO = (0.0,0.5,0.75,1.0)
 
 PEND_COST = 2
 PEND_GROWTH = None
-LATE_DISCOUNT = 0.9
+# LATE_DISCOUNT = 0.9
+LATE_COST = 1
 LATE_GROWTH = None
 SPEED_VAR = 0.2
 LATE_PROB = 0.05
@@ -38,10 +39,10 @@ HEAD_COUNT = 8
 FF_SIZE = 512
 TANH_XPLOR = 10
 
-EPOCH_COUNT = 100
+EPOCH_COUNT = 70
 ITER_COUNT = 1000
 MINIBATCH_SIZE = 512
-BASE_LR = 0.001
+BASE_LR = 0.0001
 LR_DECAY = None
 MAX_GRAD_NORM = 2
 GRAD_NORM_DECAY = None
@@ -57,7 +58,7 @@ CRITIC_DECAY = None
 TEST_BATCH_SIZE = 1280
 
 OUTPUT_DIR = None
-RESUME_STATE = 'vrp_output/SVRPTWn100m1_220915-1652/chkpt_ep100.pyth'
+RESUME_STATE = 'vrp_output/SVRPTWn10m1_220918-2341/chkpt_ep50.pyth'
 CHECKPOINT_PERIOD = 5
 TRAIN_MODE = 'value'
 
@@ -96,7 +97,7 @@ def parse_args(argv = None):
     group = parser.add_argument_group("VRP Environment parameters")
     group.add_argument("--pending-cost", type = float, default = PEND_COST)
     group.add_argument("--pend-cost-growth", type = float, default = PEND_GROWTH)
-    group.add_argument("--late-discount", type = float, default = LATE_DISCOUNT)
+    group.add_argument("--late-cost", type = float, default = LATE_COST)
     group.add_argument("--late-cost-growth", type = float, default = LATE_GROWTH)
     group.add_argument("--speed-var", type = float, default = SPEED_VAR)
     group.add_argument("--late-prob", type = float, default = LATE_PROB)

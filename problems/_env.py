@@ -1,7 +1,7 @@
 import torch
 
 class VRP_Environment:
-    VEH_STATE_SIZE = 4 # [loc, cap, speed]
+    VEH_STATE_SIZE = 5 # [loc, cap, speed, time]
     CUST_FEAT_SIZE = 4 # [loc, dem, rew]
 
     def __init__(self, data, vehs = None, nodes = None, cust_mask = None,
@@ -17,10 +17,10 @@ class VRP_Environment:
     def _update_vehicles(self, dest):
         dist = torch.pairwise_distance(self.cur_veh[:,0,:2], dest[:,0,:2], keepdim = True)
         veh_speed = self.cur_veh[:,0,3] 
-        # tt = dist / veh_speed
+        tt = dist / veh_speed
         self.cur_veh[:,:,:2] = dest[:,:,:2]
         self.cur_veh[:,:,2] -= dest[:,:,2]
-        # self.cur_veh[:,:,4] += tt
+        self.cur_veh[:,:,4] += tt
 
         self.vehicles = self.vehicles.scatter(1,
                 self.cur_veh_idx[:,:,None].expand(-1,-1,self.VEH_STATE_SIZE), self.cur_veh)

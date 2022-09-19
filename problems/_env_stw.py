@@ -3,9 +3,9 @@ import torch
 
 class SVRPTW_Environment(VRPTW_Environment):
     def __init__(self, data, vehs = None, nodes = None, cust_mask = None,
-            pending_cost = 2, late_discount = 0.9,
-            speed_var = 0.5, late_p = 0.05, slow_down = 0.5, late_var = 0.3):
-        super().__init__(data, vehs, nodes, cust_mask, pending_cost, late_discount)
+            pending_cost = 2,  late_cost = 1,
+            speed_var = 0.2, late_p = 0.05, slow_down = 0.5, late_var = 0.3):
+        super().__init__(data, vehs, nodes, cust_mask, pending_cost, late_cost)
         self.speed_var = speed_var
         self.late_p = late_p
         self.slow_down = slow_down
