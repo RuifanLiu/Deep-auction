@@ -374,7 +374,7 @@ class CBBA():
                     
                     CBBA_Data['path'] = self.CBBA_InsertInList(CBBA_Data['path'], int(bestTask), bestIndxs[bestTask])
                     CBBA_Data['times'] = self.CBBA_InsertInList(CBBA_Data['times'], taskTimes[bestTask], bestIndxs[bestTask])
-                    CBBA_Data['scores'] = self.CBBA_InsertInList(CBBA_Data['scores'], CBBA_Data['bids'][bestTask], bestIndxs[bestTask])
+                    CBBA_Data['scores'] = self.CBBA_InsertInList(CBBA_Data['scores'], CBBA_Data['real_bids'][bestTask], bestIndxs[bestTask])
                     length = len(np.argwhere(CBBA_Data['bundle']>-1))
                     CBBA_Data['bundle'][length] = bestTask
                 else:
