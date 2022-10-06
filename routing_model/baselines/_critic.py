@@ -9,6 +9,11 @@ class CriticBaseline(Baseline):
         super().__init__(learner, use_cumul_reward)
         self.use_qval = use_qval
         self.cust_count = cust_count
+        # self.project = nn.Sequential(
+        #     nn.Linear(cust_count+1, 128, bias = True),
+        #     nn.ReLU(),
+        #     nn.Linear(128, cust_count+1 if use_qval else 1, bias = False),
+        # )
         self.project = nn.Linear(cust_count+1, cust_count+1 if use_qval else 1, bias = False)
 
     def eval_step(self, vrp_dynamics, learner_compat, cust_idx):

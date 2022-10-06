@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 
+from multiprocessing.sharedctypes import Value
 from problems import *
 from routing_model.baselines import *
 from routing_model.externals import *
@@ -54,8 +55,8 @@ def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, 
                     grad_norm = clip_grad_norm_(chain.from_iterable(grp["params"] for grp in optim.param_groups),
                             args.max_grad_norm)
                 optim.step()
-                progress.set_postfix_str("l={:.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
-                    loss, prob, val, bl, grad_norm))
+                progress.set_postfix_str("l={:.4g} vl={:9.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
+                    loss, bl_loss, prob, val, bl, grad_norm))
             elif args.train_mode == 'value':
                 actions, logps, rewards, _ = policy_bl_wrapped_learner(dyna, greedy=True)
                 _, _, _, bl_vals = bl_wrapped_learner(dyna)
@@ -69,7 +70,7 @@ def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, 
                     grad_norm = clip_grad_norm_(chain.from_iterable(grp["params"] for grp in optim.param_groups),
                             args.max_grad_norm)
                 optim.step()
-                progress.set_postfix_str("l={:.4g},vl={:9.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
+                progress.set_postfix_str("l={:.4g} vl={:9.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
                     loss, bl_loss, prob, val, bl, grad_norm))
 
             ep_loss += loss.item()
@@ -116,14 +117,25 @@ def test_epoch(args, test_env, learner, bl_wrapped_learner, ref_costs, **kwargs)
     return costs.mean().item(), losses, bl_losses, gap
 
 def main(args):
-    dev = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
-    if args.rng_seed is not None:
-        torch.manual_seed(args.rng_seed)
-
     if args.verbose:
         verbose_print = print
     else:
         def verbose_print(*args, **kwargs): pass
+
+    if torch.cuda.is_available() and not args.no_cuda:
+        num_of_gpus = torch.cuda.device_count()
+        verbose_print("Find {} GPU cores in the device".format(num_of_gpus))
+        if args.gpu_no < num_of_gpus:
+            device = 'cuda:'+str(args.gpu_no)
+            verbose_print("GPU:{} is selected".format(args.gpu_no))
+        else:
+            raise ValueError('GPU: {} is not available in the device'.format(args.gpu_no))
+    else:
+        device = 'cpu'
+
+    dev = torch.device(device)
+    if args.rng_seed is not None:
+        torch.manual_seed(args.rng_seed)
 
     # PROBLEM
     Dataset = {
@@ -139,6 +151,7 @@ def main(args):
             args.veh_capa_range,
             args.veh_speed_range,
             args.min_cust_count,
+            args.max_cust_count,
             args.loc_range,
             args.dem_range,
             args.rew_range
@@ -271,7 +284,7 @@ def main(args):
     if args.resume_state is None:
         start_ep = 0
     else:
-        start_ep = load_checkpoint(args, learner, baseline, lr_sched)
+        start_ep = load_checkpoint(args, learner, baseline=None, lr_sched=lr_sched)
 
     # SEPARATE POLICY MODEL FOR VALUE TRAINING MODE
     if args.train_mode == 'value':
@@ -304,7 +317,7 @@ def main(args):
         if args.resume_state is None:
             start_ep = 0
         else:
-            start_ep = load_checkpoint(args, policy_learner, policy_baseline)
+            start_ep = load_checkpoint(args, policy_learner, None)
 
 
     verbose_print("Running...")

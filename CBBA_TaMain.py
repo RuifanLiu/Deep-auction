@@ -71,10 +71,10 @@ def main(args):
     
 
     with torch.no_grad():
-        for n in range(*args.customers_range, 10):
+        for n in range(*args.customers_range, 5):
             # for m in range(*args.vehicles_range, 1):
                 m = n//5
-                data_path = "./data_sample10_1/s_cvrptw_n{}m{}/norm_data.pyth".format(n, m)    
+                data_path = "./data_sample100_stw/s_cvrptw_n{}m{}/norm_data.pyth".format(n, m)    
                 data = torch.load(data_path)
                 loader = DataLoader(data, batch_size = args.valid_batch_size)
 

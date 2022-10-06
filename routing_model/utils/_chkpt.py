@@ -21,6 +21,6 @@ def load_checkpoint(args, learner, baseline = None, lr_sched = None, optim = Non
         optim.load_state_dict(checkpoint["optim"])
     if args.rate_decay is not None:
         lr_sched.load_state_dict(checkpoint["lr_sched"])
-    if args.baseline_type == "critic":
+    if args.baseline_type == "critic" and baseline is not None:
         baseline.load_state_dict(checkpoint["critic"])
     return checkpoint["ep"]

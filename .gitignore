@@ -8,3 +8,4 @@ pretrained/
 *.csv
 *.json
 data_sample10/
+*.pyth

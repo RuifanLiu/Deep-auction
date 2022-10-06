@@ -10,19 +10,19 @@ SEED = None
 PROBLEM = "svrptw"
 CUST_RANGE = (10,51) 
 VEH_RANGE = (5,6)
-VALID_DATASET = 'data/'
+VALID_DATASET = 'data_sample100/'
 ITERATION = 10
 
-VALUE_MODEL = 'vrp_output/SVRPTWn10m1_220919-0034/chkpt_ep70.pyth'
-DRL_MODEL = 'vrp_output/SVRPTWn10m1_220918-2341/chkpt_ep50.pyth'
+VALUE_MODEL = 'vrp_output/SVRPTWn10m1_220920-2250/chkpt_ep70.pyth'
+DRL_MODEL = 'vrp_output/SVRPTWn10m1_220920-2141/chkpt_ep50.pyth'
 
 PEND_COST = 2
 PEND_GROWTH = None
 # LATE_DISCOUNT = 0.9
-LATE_COST = 1
+LATE_COST = 4
 LATE_GROWTH = None
 SPEED_VAR = 0.2
-LATE_PROB = 0.05
+LATE_PROB = 0.0
 SLOW_DOWN = 0.2
 LATE_VAR = 0.2
 

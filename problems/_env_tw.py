@@ -19,6 +19,7 @@ class VRPTW_Environment(VRP_Environment):
         tt = dist / self._sample_speed()
         arv = torch.max(self.cur_veh[:,:,4] + tt, dest[:,:,4])
         late = ( arv - dest[:,:,5] ).clamp_(min = 0)
+        # late = torch.greater( arv, dest[:,:,5] )
         self.cur_veh[:,:,:2] = dest[:,:,:2]
         self.cur_veh[:,:,2] -= dest[:,:,2]
         self.cur_veh[:,:,4] = arv + dest[:,:,6]
@@ -37,7 +38,7 @@ class VRPTW_Environment(VRP_Environment):
         self._update_mask(cust_idx)
         self._update_cur_veh()
         # reward = reward
-        reward = -dist - self.late_cost * late
+        reward = -dist - (self.late_cost * late).clamp_(max = self.pending_cost)
         if self.done:
             if self.init_cust_mask is not None:
                 self.served += self.init_cust_mask

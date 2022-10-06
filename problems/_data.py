@@ -1,3 +1,4 @@
+from multiprocessing.sharedctypes import Value
 import torch
 import numpy as np
 from torch.utils.data import Dataset
@@ -13,6 +14,7 @@ class VRP_Dataset(Dataset):
             veh_capa_range = (100,100),
             veh_speed_range = (1,3),
             min_cust_count = None,
+            max_cust_count = None,
             cust_loc_range = (0,101),
             cust_dem_range = (0,0),
             cust_rew_range = (1,1)
@@ -40,9 +42,12 @@ class VRP_Dataset(Dataset):
         if min_cust_count is None:
             cust_mask = None
         else:
-            counts = torch.randint(min_cust_count+1, cust_count+2, (batch_size, 1), dtype = torch.int64)
-            cust_mask = torch.arange(cust_count+1).expand(batch_size, -1) > counts
-            nodes[cust_mask] = 0
+            if max_cust_count is None:
+                raise ValueError('missed the max customer count')
+            else:
+                counts = torch.randint(min_cust_count+1, max_cust_count+2, (batch_size, 1), dtype = torch.int64)
+                cust_mask = torch.arange(cust_count+1).expand(batch_size, -1) > counts
+                nodes[cust_mask] = 0
 
         veh_size = (batch_size, veh_count, 1)
         # sample veh_capa    c_i ~ U(50,100)

@@ -19,7 +19,7 @@ class CBBA():
         vehs, custs = data
         self.CBBA_Params_N = np.size(vehs,1) # number of agents
         self.CBBA_Params_M = np.size(custs,1) #number of tasks (exclude the depot)
-        self.CBBA_Params_MAXDEPTH = np.size(custs,1) #maximum bundle depth (remember to set it for each scenario)
+        self.CBBA_Params_MAXDEPTH = 10 #maximum bundle depth (remember to set it for each scenario)
         
         self.CBBA_Data = []
         for n in range(self.CBBA_Params_N):
@@ -31,6 +31,7 @@ class CBBA():
             info['times']      = -np.ones(self.CBBA_Params_MAXDEPTH, dtype=int)
             info['scores']     = -np.ones(self.CBBA_Params_MAXDEPTH)
             info['bids']       = self.DEFAULT_BID*np.ones(self.CBBA_Params_M)
+            info['real_bids']  = self.DEFAULT_BID*np.ones(self.CBBA_Params_M)
             info['winners']    = -np.ones(self.CBBA_Params_M)
             info['winnerBids'] = self.DEFAULT_BID*np.ones(self.CBBA_Params_M)
             self.CBBA_Data.append(info)
@@ -103,8 +104,8 @@ class CBBA():
         # Compute the total score of the CBBA assignment
         Total_Score = 0
         for n in range(self.CBBA_Params_N):
-            print(self.CBBA_Data[n]['bundle'])
-            print(self.CBBA_Data[n]['scores'])
+            # print(self.CBBA_Data[n]['bundle'])
+            # print(self.CBBA_Data[n]['scores'])
             for m in range(self.CBBA_Params_MAXDEPTH):
                 if self.CBBA_Data[n]['bundle'][m]>-1:
                     Total_Score = Total_Score + self.CBBA_Data[n]['scores'][m]
@@ -403,6 +404,7 @@ class CBBA():
         if len(L)==0:
             return
         CBBA_Data['bids'] = self.DEFAULT_BID*np.ones(self.CBBA_Params_M)
+        CBBA_Data['real_bids'] = self.DEFAULT_BID*np.ones(self.CBBA_Params_M)
         bestIdxs = np.zeros(self.CBBA_Params_M)
         taskTimes = np.zeros(self.CBBA_Params_M)
 
@@ -454,9 +456,9 @@ class CBBA():
                     if bestBid > self.DEFAULT_BID:
                         # Submodular Wrapper
                         existingBids = CBBA_Data['scores'][:L[0][0]]
-                        bestBid = min(np.append(existingBids,bestBid))
-
-                        CBBA_Data['bids'][m] = bestBid
+                        bestBid_wrapped = min(np.append(existingBids,bestBid))
+                        CBBA_Data['real_bids'][m] = bestBid
+                        CBBA_Data['bids'][m] = bestBid_wrapped
                         bestIdxs[m] = bestIndex
                         taskTimes[m] = bestTime
                 
@@ -481,13 +483,15 @@ class CBBA():
             # Submodular Wrapper
             existingBids = CBBA_Data['scores'][:L[0][0]]
             minExistingBids = min(existingBids) if len(existingBids) else 100
-            score = [min([i,minExistingBids]) for i in score]
+            score_wrapped = [min([i,minExistingBids]) for i in score]
+            
             
             idx = 0
             margin_thershold = self.DEFAULT_BID
             for m in unAllocatedTask:
                 if score[idx]>margin_thershold:
-                    CBBA_Data['bids'][m] = score[idx]
+                    CBBA_Data['bids'][m] = score_wrapped[idx]
+                    CBBA_Data['real_bids'][m] = score[idx]
                     bestIdxs[m] = 0
                     taskTimes[m] = 0
                 idx = idx+1

@@ -12,12 +12,13 @@ class VRPTW_Dataset(VRP_Dataset):
             veh_capa_range = (100,100),
             veh_speed_range = (1,3),
             min_cust_count = None,
+            max_cust_count = None,
             cust_loc_range = (0,101), 
             cust_dem_range = (0,0),
             cust_rew_range = (1,1),
             horizon = 480,
             cust_dur_range = (10,31),
-            tw_ratio = 1.0,
+            tw_ratio = (0.25,0.5,0.75,1.0),
             cust_tw_range = (30,91)
             ):
         size = (batch_size, cust_count, 1)
@@ -66,10 +67,12 @@ class VRPTW_Dataset(VRP_Dataset):
         if min_cust_count is None:
             cust_mask = None
         else:
-            counts = torch.randint(min_cust_count+1, cust_count+2, (batch_size, 1), dtype = torch.int64)
-            # counts = torch.randint(5, 6, (batch_size, 1), dtype = torch.int64)
-            cust_mask = torch.arange(cust_count+1).expand(batch_size, -1) > counts
-            nodes[cust_mask] = 0
+            if max_cust_count is None:
+                raise ValueError('missed the max customer count')
+            else:
+                counts = torch.randint(min_cust_count+1, max_cust_count+2, (batch_size, 1), dtype = torch.int64)
+                cust_mask = torch.arange(cust_count+1).expand(batch_size, -1) > counts
+                nodes[cust_mask] = 0
 
         veh_size = (batch_size, veh_count, 1)
         # sample veh_capa    c_i ~ U(50,100)

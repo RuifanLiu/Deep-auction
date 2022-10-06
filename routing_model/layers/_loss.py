@@ -25,9 +25,8 @@ def reinforce_loss(logprobs, rewards, baseline = None, weights = None, discount 
         loss = torch.stack([-logp * w for logp,w in zip(logprobs, weights)]).sum(dim = 0)
         loss *= (rewards - baseline.detach())
 
-        bl_loss = 0
         # if baseline.requires_grad:
-        bl_loss += F.smooth_l1_loss(baseline, rewards)
+        bl_loss = F.smooth_l1_loss(baseline, rewards)
         loss += bl_loss
     else:
         if baseline is None:

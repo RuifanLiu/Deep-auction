@@ -4,6 +4,7 @@ import json
 
 CONFIG_FILE = None
 VERBOSE = True
+GPU_NO = 0
 NO_CUDA = False
 SEED = None
 
@@ -13,7 +14,8 @@ VEH_COUNT = 1
 VEH_CAPA_RANGE = (100, 100)
 VEH_SPEED_RANGE = (1, 1)
 HORIZON = 480
-MIN_CUST_COUNT = 0
+MIN_CUST_COUNT = None
+MAX_CUST_COUNT = None
 LOC_RANGE = (0,101)
 DEM_RANGE = (0,0)
 REW_RANGE = (1,1)
@@ -26,10 +28,10 @@ APPEAR_EARLY_RATIO = (0.0,0.5,0.75,1.0)
 PEND_COST = 2
 PEND_GROWTH = None
 # LATE_DISCOUNT = 0.9
-LATE_COST = 1
+LATE_COST = 4
 LATE_GROWTH = None
 SPEED_VAR = 0.2
-LATE_PROB = 0.05
+LATE_PROB = 0.0
 SLOW_DOWN = 0.2
 LATE_VAR = 0.2
 
@@ -39,7 +41,7 @@ HEAD_COUNT = 8
 FF_SIZE = 512
 TANH_XPLOR = 10
 
-EPOCH_COUNT = 70
+EPOCH_COUNT = 100
 ITER_COUNT = 1000
 MINIBATCH_SIZE = 512
 BASE_LR = 0.0001
@@ -58,7 +60,7 @@ CRITIC_DECAY = None
 TEST_BATCH_SIZE = 1280
 
 OUTPUT_DIR = None
-RESUME_STATE = 'vrp_output/SVRPTWn10m1_220918-2341/chkpt_ep50.pyth'
+RESUME_STATE = None #'vrp_output/SVRPTWn10m1_220920-2141/chkpt_ep50.pyth'
 CHECKPOINT_PERIOD = 5
 TRAIN_MODE = 'value'
 
@@ -75,6 +77,7 @@ def parse_args(argv = None):
     parser.add_argument("--verbose", "-v", action = "store_true", default = VERBOSE)
     parser.add_argument("--no-cuda", action = "store_true", default = NO_CUDA)
     parser.add_argument("--rng-seed", type = int, default = SEED)
+    parser.add_argument("--gpu-no", type = int, default = GPU_NO)
 
     group = parser.add_argument_group("Data generation parameters")
     group.add_argument("--problem-type", "-p", type = str,
@@ -85,6 +88,7 @@ def parse_args(argv = None):
     group.add_argument("--veh-speed-range", type = int, default = VEH_SPEED_RANGE)
     group.add_argument("--horizon", type = int, default = HORIZON)
     group.add_argument("--min-cust-count", type = int, default = MIN_CUST_COUNT)
+    group.add_argument("--max-cust-count", type = int, default = MAX_CUST_COUNT)
     group.add_argument("--loc-range", type = int, nargs = 2, default = LOC_RANGE)
     group.add_argument("--dem-range", type = int, nargs = 2, default = DEM_RANGE)
     group.add_argument("--rew-range", type = int, nargs = 2, default = REW_RANGE)

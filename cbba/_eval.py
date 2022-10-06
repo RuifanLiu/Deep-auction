@@ -28,6 +28,8 @@ def eval_routes_drl(args, Environment, batch, policy_model, assignments):
             # acts, logps, rew = drl_model(dyna)
             acts1, logps1, rew1, bls = policy_model(dyna, greedy=True) 
             rewards += rew1.mean()
+
+            # print(acts1)
     
     return rewards/iterations, None
 
