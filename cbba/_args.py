@@ -8,15 +8,15 @@ NO_CUDA = False
 SEED = None
 
 PROBLEM = "svrptw"
-CUST_RANGE = (10,51) 
+CUST_RANGE = (10,20,50) 
 VEH_RANGE = (5,6)
 VALID_DATASET = 'data_sample100/'
 ITERATION = 10
 
-VALUE_MODEL = 'vrp_output/SVRPTWn10m1_220920-2250/chkpt_ep70.pyth'
-DRL_MODEL = 'vrp_output/SVRPTWn10m1_220920-2141/chkpt_ep50.pyth'
+VALUE_MODEL = 'vrp_output/SVRPTWn10m1_221011-2044/chkpt_ep150.pyth'
+DRL_MODEL = 'vrp_output/SVRPTWn10m1_221011-1625/chkpt_ep100.pyth'
 
-PEND_COST = 2
+PEND_COST = 1
 PEND_GROWTH = None
 # LATE_DISCOUNT = 0.9
 LATE_COST = 4

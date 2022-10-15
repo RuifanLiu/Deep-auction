@@ -24,21 +24,21 @@ class VRPTW_Environment(VRP_Environment):
         self.cur_veh[:,:,2] -= dest[:,:,2]
         self.cur_veh[:,:,4] = arv + dest[:,:,6]
 
-        # finish = torch.le(self.cur_veh[:,:,4],dest[:,:,5])
-        # reward = finish * dest[:,:,3] * torch.exp(-self.late_discount*late)
+        finish = torch.le(arv, dest[:,:,5])
+        reward = finish * dest[:,:,3]# * torch.exp(-self.late_discount*late)
 
         self.vehicles = self.vehicles.scatter(1,
                 self.cur_veh_idx[:,:,None].expand(-1,-1,self.VEH_STATE_SIZE), self.cur_veh)
-        return dist, late
+        return reward, finish
 
     def step(self, cust_idx):
         dest = self.nodes.gather(1, cust_idx[:,:,None].expand(-1,-1,self.CUST_FEAT_SIZE))
-        dist, late = self._update_vehicles(dest)
+        reward, finish = self._update_vehicles(dest)
         self._update_done(cust_idx)
         self._update_mask(cust_idx)
         self._update_cur_veh()
-        # reward = reward
-        reward = -dist - (self.late_cost * late).clamp_(max = self.pending_cost)
+        reward = reward - self.pending_cost * torch.logical_not(finish)
+        # reward = -dist - (self.late_cost * late).clamp_(max = self.pending_cost)
         if self.done:
             if self.init_cust_mask is not None:
                 self.served += self.init_cust_mask

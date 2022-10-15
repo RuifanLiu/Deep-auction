@@ -359,10 +359,10 @@ class CBBA():
 
             if sum(D)>0:
                 value = max(CBBA_Data['bids'][D])
-                bestTask = np.argwhere(np.multiply(D, CBBA_Data['bids'])==value)
-            # if value>0:
+                aval_bids = self.DEFAULT_BID*np.ones(self.CBBA_Params_M)
+                aval_bids[D] = CBBA_Data['bids'][D]
                 newBid = 1
-                allvalues = np.argwhere(np.multiply(D, CBBA_Data['bids'])==value)
+                allvalues = np.argwhere(aval_bids==value)
                 if len(allvalues) == 1:
                     bestTask = allvalues
                 else:
@@ -375,6 +375,8 @@ class CBBA():
                     CBBA_Data['path'] = self.CBBA_InsertInList(CBBA_Data['path'], int(bestTask), bestIndxs[bestTask])
                     CBBA_Data['times'] = self.CBBA_InsertInList(CBBA_Data['times'], taskTimes[bestTask], bestIndxs[bestTask])
                     CBBA_Data['scores'] = self.CBBA_InsertInList(CBBA_Data['scores'], CBBA_Data['real_bids'][bestTask], bestIndxs[bestTask])
+                    if bestTask==0:
+                        print('break')
                     length = len(np.argwhere(CBBA_Data['bundle']>-1))
                     CBBA_Data['bundle'][length] = bestTask
                 else:
@@ -409,7 +411,6 @@ class CBBA():
         taskTimes = np.zeros(self.CBBA_Params_M)
 
         CBBA_double_bids = None
-        
 
         if self.Scoring_CalcScore == 'Scoring_CalcScore_Original' or self.Scoring_CalcScore == 'Scoring_CalcScore_Robust':
             if self.Scoring_CalcScore == 'Scoring_CalcScore_Original' :
@@ -435,7 +436,6 @@ class CBBA():
                         else:
                             taskNext = CBBA_Data['path'][j:L[0][0]].tolist()
                             timeNext = CBBA_Data['times'][j:L[0][0]].tolist()
-
 
                         score_old, score_new, minStart, maxStart = Scoring_CalcScore_Original(self.args,self.env, n, self.custs, self.vehs, m, 
                                                                                  taskPrev,timePrev,

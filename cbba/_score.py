@@ -81,9 +81,9 @@ def det_reward_func(args, custs, veh, task_list):
         vehicles[2] -= dest[2]
         vehicles[4] = arv + dest[6]
 
-        rewards += -dist - np.clip(args.late_cost*late, 0, args.pending_cost)
-        # finish = (vehicles[4] <= dest[5])
-        # rewards += finish * dest[3] * np.exp(-args.late_discount*late)
+        # rewards += -dist - np.clip(args.late_cost*late, 0, args.pending_cost)
+        finish = (arv <= dest[5])
+        rewards += dest[3]* finish - args.pending_cost* (1-finish) #* np.exp(-args.late_discount*late)
         if cust_idx == 0:
             done = True
     return rewards, None

@@ -71,7 +71,7 @@ def main(args):
     
 
     with torch.no_grad():
-        for n in range(*args.customers_range, 5):
+        for n in [*(args.customers_range)]:#range(*args.customers_range, 5):
             # for m in range(*args.vehicles_range, 1):
                 m = n//5
                 data_path = "./data_sample100_stw/s_cvrptw_n{}m{}/norm_data.pyth".format(n, m)    
@@ -87,6 +87,7 @@ def main(args):
                     exp_reward.append(Total_Score)
                     act_reward.append(reward.item())
                     run_time.append(Runnning_time)
+
                 print("DNN-CBBA score: exp: {:.5f} +- {:.5f} act: {:.5f} +- {:.5f}"\
                     .format(np.mean(exp_reward), np.std(exp_reward), np.mean(act_reward), np.std(act_reward)))
                 dnn_cbba_stats = (np.mean(exp_reward), np.mean(act_reward))
@@ -102,6 +103,7 @@ def main(args):
                     run_time.append(Runnning_time)
                     reward, delay = eval_routes_drl(args, sto_Environment, batch, policy_model, CBBA_Assignments)
                     act_reward_drl.append(reward.item())
+
                 print("baseline CBBA score: exp: {:.5f} +- {:.5f} act: {:.5f} +- {:.5f} act+drl: {:.5f} +- {:.5f}"\
                     .format(np.mean(exp_reward), np.std(exp_reward), np.mean(act_reward), np.std(act_reward),\
                     np.mean(act_reward_drl), np.std(act_reward_drl)))
