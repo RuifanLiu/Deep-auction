@@ -69,14 +69,39 @@ def eval_apriori_routes(args, Environment, batch, assignments):
     
     return rewards/iterations, None
 
+def eval_routes_mdp(args, Environment, batch, MDP, Policy, assignments):
+    vehs, custs = batch
+    batch_size, nodes_count, node_state_size  = custs.size()
+    _, n_agent, _ = vehs.size()
 
-    for c in range(rollout_count):
-        dyna.reset()
-        routes_it = [[_pad_with_zeros(route) for route in inst_routes] for inst_routes in routes]
-        rewards = []
-        while not dyna.done:
-            cust_idx = dyna.nodes.new_tensor([[next(routes_it[n][i.item()])]
-                for n,i in enumerate(dyna.cur_veh_idx)], dtype = torch.int64)
-            rewards.append( dyna.step(cust_idx) )
-        mean_cost += -torch.stack(rewards).sum(dim = 0).squeeze(-1)
-    return mean_cost / rollout_count
+    if issubclass(Environment, VRPTW_Environment):
+        env_params = [args.pending_cost, args.late_cost]
+        if issubclass(Environment, SVRPTW_Environment):
+            env_params.extend([args.speed_var, args.late_prob, args.slow_down, args.late_var])
+
+    iterations = 100
+    rewards = 0
+    for n_iter in range(iterations):
+        for n in range(n_agent):
+            task_list_end = np.argwhere(assignments[n]==-1)
+            task_list = assignments[n][:task_list_end[0][0]] if len(task_list_end) else assignments[n]
+            # unmask selected tasks and depot
+            trunct_custs = custs[:, [0]+list(task_list), :]
+        
+            data = PaddedData(vehs=vehs[:,n,:][:,None,:], nodes=trunct_custs, padding_size=nodes_count)
+            dyna = Environment(data, None, None, None, *env_params)
+            dyna.reset()
+            next_idx = 0
+            while not dyna.done:
+                available_task = torch.logical_not(dyna.mask.squeeze())
+                available_task[0] = 0
+                state = {
+                    'time': dyna.cur_veh[:,:,4],
+                    'available_task': available_task,
+                    'cur_node': next_idx
+                }
+                next_idx = Policy[MDP.state_to_idx(state)]
+                rew = dyna.step(torch.tensor([next_idx])[None,:]) 
+                rewards += rew
+    
+    return rewards/iterations, None

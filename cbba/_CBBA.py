@@ -7,7 +7,8 @@ Created on Tue Nov 17 13:16:26 2020
 from cProfile import run
 import time
 import numpy as np
-from ._score import Scoring_CalcScore_Original, Scoring_CalcScore_DNN, Scoring_CalcScore_Maxmin_DNN
+from ._score import Scoring_CalcScore_Original, Scoring_CalcScore_DNN, Scoring_CalcScore_Maxmin_DNN,\
+    Scoring_CalcScore_MDP
 
 
 class CBBA():
@@ -42,6 +43,9 @@ class CBBA():
         self.value_model = kwargs.get('value_model') if 'value_model' in kwargs else None       
         self.value_model2 = kwargs.get('value_model2') if 'value_model2' in kwargs else None
         self.DRL_model = kwargs.get('DRL_model') if 'DRL_model' in kwargs else None
+
+        self.MDP = kwargs.get('MDP') if 'MDP' in kwargs else None
+        self.Value = kwargs.get('Value') if 'Value' in kwargs else None
         
     def CBBA_Main(self):
         t_start = time.perf_counter()
@@ -477,6 +481,39 @@ class CBBA():
                     
             score_old, score_new, minStart, maxStart = Scoring_CalcScore_DNN(self.args, self.env, n, self.custs, self.vehs, \
                 self.value_model, unAllocatedTask, taskPrev, timePrev, taskNext,timeNext)
+            original_score = np.sum(CBBA_Data['scores'][:L[0][0]])
+            score = score_new - original_score
+
+            # Submodular Wrapper
+            existingBids = CBBA_Data['scores'][:L[0][0]]
+            minExistingBids = min(existingBids) if len(existingBids) else 100
+            score_wrapped = [min([i,minExistingBids]) for i in score]
+            
+            
+            idx = 0
+            margin_thershold = self.DEFAULT_BID
+            for m in unAllocatedTask:
+                if score[idx]>margin_thershold:
+                    CBBA_Data['bids'][m] = score_wrapped[idx]
+                    CBBA_Data['real_bids'][m] = score[idx]
+                    bestIdxs[m] = 0
+                    taskTimes[m] = 0
+                idx = idx+1
+        elif self.Scoring_CalcScore == 'Scoring_CalcScore_MDP':
+
+            unAllocatedTask = []
+            for m in range(1, self.CBBA_Params_M):
+                if not len(np.argwhere(CBBA_Data['path']==m)):
+                    unAllocatedTask.append(m)
+            j=L[0][0]
+
+            taskPrev = []
+            timePrev = []
+            taskNext = CBBA_Data['path'][:j].tolist()
+            timeNext = CBBA_Data['times'][:j].tolist()
+                    
+            score_old, score_new, minStart, maxStart = Scoring_CalcScore_MDP(self.args, self.MDP, n, self.custs, self.vehs, \
+                self.Value, unAllocatedTask, taskPrev, timePrev, taskNext,timeNext)
             original_score = np.sum(CBBA_Data['scores'][:L[0][0]])
             score = score_new - original_score
 

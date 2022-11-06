@@ -4,11 +4,13 @@ Created on Fri Dec  4 20:55:50 2020
 
 @author: s313488
 """
+from matplotlib.style import available
 import torch
 import numpy as np
 import time
 from cbba._data_util import data_padding, data_padding_zeros
 from cbba._data_util import PaddedData, _padding_with_zeros
+from cbba._mdp_utils import MDP
 from routing_model.utils._misc import _pad_with_zeros
 from problems import *
 
@@ -145,6 +147,33 @@ def Scoring_CalcScore_DNN(args, Environment, n, custs, vehs, value_model, unAllo
     data = PaddedData(vehs=vehs, nodes=nodes, padding_size=value_model.cust_count+1)
     output_reward_new = value_model.eval_init(Environment(data, None, None, None, *env_params))
    
+    # print('oldTaskList:',oldTaskList)
+    # print('unAllocatedTask:',unAllocatedTask)
+    # print('output_reward_new:',output_reward_new)
+    # print('\n')
+    minStart, maxStart = 0, 0
+    output_reward_old = []
+    return output_reward_old, output_reward_new, minStart, maxStart
+
+def Scoring_CalcScore_MDP(args, MDP, n, custs, vehs, Value, unAllocatedTask, taskPrev, timePrev, taskNext, timeNext):   
+    
+    oldTaskList = taskPrev + taskNext
+    newTaskListList = [taskPrev + [m] + taskNext for m in unAllocatedTask]
+
+    batch_size, nodes_count, node_state_size  = custs.size()
+    output_reward_new = []
+    for newTaskList in newTaskListList:
+        available_task = np.zeros(nodes_count)
+        available_task[newTaskList] = 1
+        state = {
+                'time': 0,
+                'available_task': available_task,
+                'cur_node': 0
+            }
+        idx = MDP.state_to_idx(state)
+        value = Value[idx]
+        output_reward_new.append(value)
+    
     # print('oldTaskList:',oldTaskList)
     # print('unAllocatedTask:',unAllocatedTask)
     # print('output_reward_new:',output_reward_new)
