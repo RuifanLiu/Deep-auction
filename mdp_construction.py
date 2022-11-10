@@ -23,10 +23,10 @@ if __name__ == '__main__':
                 print('constucting the mdp for ' + save_path + '...')
                 batch_mdp = MDP(batch)
                 tp_mtx, rew_mtx= batch_mdp.mdp_generation()
-                pi = PolicyIteration(tp_mtx, rew_mtx, discount=0.99)
-                pi.run()
+                vi = ValueIteration(tp_mtx, rew_mtx, discount=1.0)
+                vi.run()
                 with open(save_path, 'wb') as f:
                     # Pickle the 'data' dictionary using the highest protocol available.
-                    pickle.dump([batch_mdp, pi], f, pickle.HIGHEST_PROTOCOL)
+                    pickle.dump([batch_mdp, vi], f, pickle.HIGHEST_PROTOCOL)
             else:
                 print('skip the mdp for ' + save_path)

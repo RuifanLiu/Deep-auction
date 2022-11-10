@@ -9,3 +9,4 @@ pretrained/
 *.json
 data_sample10/
 *.pyth
+mdp_sample10_stw/

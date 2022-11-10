@@ -14,6 +14,7 @@ class SVRPTW_Environment(VRPTW_Environment):
     def _sample_speed(self):
         late = self.nodes.new_empty((self.minibatch_size, 1)).bernoulli_(self.late_p)
         rand = torch.randn_like(late)
+        rand = torch.clip(rand, min=-0.5, max=0.5)
         speed = late * self.slow_down * (1 + self.late_var * rand) + (1-late) * (1 + self.speed_var * rand)
         # speed = 1 + self.speed_var * rand
         # print(speed)

@@ -86,9 +86,11 @@ def eval_routes_mdp(args, Environment, batch, MDP, Policy, assignments):
             task_list_end = np.argwhere(assignments[n]==-1)
             task_list = assignments[n][:task_list_end[0][0]] if len(task_list_end) else assignments[n]
             # unmask selected tasks and depot
-            trunct_custs = custs[:, [0]+list(task_list), :]
+            # trunct_custs = custs[:, [0]+list(task_list), :]
+            cust_mask =torch.ones(nodes_count, dtype=torch.bool)[None, :]
+            cust_mask[:,[0]+list(task_list)] = 0
         
-            data = PaddedData(vehs=vehs[:,n,:][:,None,:], nodes=trunct_custs, padding_size=nodes_count)
+            data = PaddedData(vehs=vehs[:,n,:][:,None,:], nodes=custs, cust_mask=cust_mask)
             dyna = Environment(data, None, None, None, *env_params)
             dyna.reset()
             next_idx = 0
@@ -96,12 +98,13 @@ def eval_routes_mdp(args, Environment, batch, MDP, Policy, assignments):
                 available_task = torch.logical_not(dyna.mask.squeeze())
                 available_task[0] = 0
                 state = {
-                    'time': dyna.cur_veh[:,:,4],
+                    'time': int(dyna.cur_veh[:,:,4]*480),
                     'available_task': available_task,
                     'cur_node': next_idx
                 }
                 next_idx = Policy[MDP.state_to_idx(state)]
                 rew = dyna.step(torch.tensor([next_idx])[None,:]) 
+                # print([state,next_idx,rew])
                 rewards += rew
     
     return rewards/iterations, None

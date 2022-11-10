@@ -69,8 +69,9 @@ class MDP():
         #         tp_values = tp_values + poss
         #         rew_values = rew_values + rew
             # print('get result:'+str(time.perf_counter()-t_start))
+            uniq_row_idxes, uniq_col_idxes, uniq_rew_values = zip(*set(zip(row_idxes, col_idxes, rew_values)))
             TP = csr_matrix((tp_values,(row_idxes, col_idxes)), shape=(num_total_state, num_total_state), dtype=np.float64)
-            Reward = csr_matrix((rew_values,(row_idxes, col_idxes)), shape=(num_total_state, num_total_state), dtype=np.float64)
+            Reward = csr_matrix((uniq_rew_values,(uniq_row_idxes, uniq_col_idxes)), shape=(num_total_state, num_total_state), dtype=np.float64)
             # print('generate matrix:'+str(time.perf_counter()-t_start))
             output_TP.append(TP)
             output_reward.append(Reward)
@@ -80,12 +81,12 @@ class MDP():
         output = []
         is_state, state = self.idx_to_state(row_idx)
         if not is_state: return []
-        if row_idx == 2886 and iact == 1: 
-            print('1')
         avail_tasks, times, rews, posses = self.state_transition(state, iact)
         for ipos in range(len(posses)):
+            if times[ipos]>self.horizon:
+                print(times[ipos])
             next_state = {
-                'time': times[ipos],
+                'time': int(times[ipos]),
                 'available_task': avail_tasks,
                 'cur_node': iact
             }
@@ -118,7 +119,7 @@ class MDP():
             is_task_in = int(dec_avail_task / 2**(self.nodes_count-1-task_no))
             if is_task_in:
                 available_task[task_no] = 1
-                dec_avail_task = int(dec_avail_task - 2**task_no)
+                dec_avail_task = int(dec_avail_task - 2**(self.nodes_count-1-task_no))
         if time > self.horizon or cur_node >= self.nodes_count:
             is_state = False
             state = []
@@ -134,40 +135,45 @@ class MDP():
     def state_transition(self, state, iact):
         avail_tasks = np.copy(state['available_task'])
 
-        if (avail_tasks[iact] == 1) and (iact is not 0) and (iact is not state['cur_node']):
+        if (avail_tasks[iact] == 1) or (iact == 0) : # if node is unvisited or the depot
             avail_tasks[iact] = 0
             dist = np.linalg.norm(self.nodes[state['cur_node']][:2]-self.nodes[iact][:2], axis=-1)
-            dist = dist*self.loc_scl
+            
+            if dist > 0:
+                dist = dist*self.loc_scl
 
-            max_speed = self.speed*1.5
-            min_speed = self.speed*0.5
-            max_time_path = int(dist/min_speed)
-            min_time_path = int(dist/max_speed)
+                max_speed = self.speed*1.5
+                min_speed = self.speed*0.5
+                max_time_path = int(dist/min_speed)
+                min_time_path = int(dist/max_speed)
 
-            internal_times_1 = range(min_time_path, max_time_path)
-            internal_times_2 = range(min_time_path+1, max_time_path+1)
-            speed_nm = norm(loc = self.speed, scale = self.speed_var)
-            posses = speed_nm.cdf(dist/internal_times_1) - speed_nm.cdf(dist/internal_times_2)
-            posses = posses/sum(posses)
+                internal_times_1 = range(min_time_path, max_time_path)
+                internal_times_2 = range(min_time_path+1, max_time_path+1)
+                speed_nm = norm(loc = self.speed, scale = self.speed_var)
+                posses = speed_nm.cdf(dist/internal_times_1) - speed_nm.cdf(dist/internal_times_2)
+                posses = posses/sum(posses)
+                tt = np.array(internal_times_2)
+            else:
+                posses = [1.0]
+                tt = np.array([0.0])
 
-            tt = np.array(internal_times_2)
             time_arrival = state['time'] + tt
-            time_start = np.array([max([arv, self.nodes[iact][4]]*self.t_scl) for arv in time_arrival]) 
+            time_start = np.array([int(max([arv, self.nodes[iact][4]*self.t_scl])) for arv in time_arrival]) 
             late = np.array([arv > self.nodes[iact][5]*self.t_scl for arv in time_arrival])
             rews = self.nodes[iact][3] * (1-late) - self.pending_cost*late
-            times = time_start + self.nodes[iact][6]*self.t_scl
+            times = time_start + int(self.nodes[iact][6]*self.t_scl)
             exceed_horizon = np.where(times > self.horizon)
-            rews[exceed_horizon] = 0.0
+            rews[exceed_horizon] = -1
             times[exceed_horizon] = self.horizon
                 
-        elif iact is 0:
+            if iact == 0:
+                rews += -self.pending_cost*sum(avail_tasks)
+                avail_tasks[:] = 0
+
+        else: # otherwise, -1 penalty is given
+            time = state['time'] + self.nodes[iact][6]*self.t_scl
             avail_tasks[iact] = 0
-            times = [self.horizon]
-            rews = [0.0]
-            posses = [1.0]
-        else:
-            avail_tasks[iact] = 0
-            times = [state['time'] + self.nodes[iact][6]*self.t_scl]
+            times = [np.clip(time, 0, self.horizon)]
             rews = [-1.0]
             posses = [1.0]
 
