@@ -42,10 +42,11 @@ class CriticBaseline(Baseline):
         self.learner._encode_customers(vrp_dynamics.nodes, vrp_dynamics.cust_mask)
         # self.learner._encode_customers(vrp_dynamics.nodes)
         actions, logps, rewards, bl_vals = [], [], [], []
+        step = 0
         while not vrp_dynamics.done:
             veh_repr = self.learner._repr_vehicle(
                     vrp_dynamics.vehicles,
-                    vrp_dynamics.cur_veh_idx,
+                    vrp_dynamics.cur_veh_idx,                                                    
                     vrp_dynamics.mask)
             compat = self.learner._score_customers(veh_repr)
             logp = self.learner._get_logp(compat, vrp_dynamics.cur_veh_mask)
@@ -59,6 +60,14 @@ class CriticBaseline(Baseline):
             logps.append( logp.gather(1, cust_idx) )
             r = vrp_dynamics.step(cust_idx)
             rewards.append(r)
+
+                        
+            # step += 1
+            # actions_0 = vrp_dynamics.cur_veh_idx
+            # actions_1 = cust_idx
+            # print('step {} actions:{} {}'.format(step, actions_0.view(1,-1), actions_1.view(1,-1)))
+
+
         if self.use_cumul:
             rewards = torch.stack(rewards).sum(dim = 0)
             bl_vals = bl_vals[0]

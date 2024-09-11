@@ -20,7 +20,7 @@ class VRP_Environment:
         tt = dist / veh_speed
         self.cur_veh[:,:,:2] = dest[:,:,:2]
         self.cur_veh[:,:,2] -= dest[:,:,2]
-        self.cur_veh[:,:,4] += tt
+        self.cur_veh[:,:,4] += tt 
 
         self.vehicles = self.vehicles.scatter(1,
                 self.cur_veh_idx[:,:,None].expand(-1,-1,self.VEH_STATE_SIZE), self.cur_veh)

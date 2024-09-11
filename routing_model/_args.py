@@ -30,7 +30,7 @@ PEND_GROWTH = None
 # LATE_DISCOUNT = 0.9
 LATE_COST = 4
 LATE_GROWTH = None
-SPEED_VAR = 0.2
+SPEED_VAR = 0.0
 LATE_PROB = 0.0
 SLOW_DOWN = 0.2
 LATE_VAR = 0.2
@@ -60,9 +60,12 @@ CRITIC_DECAY = None
 TEST_BATCH_SIZE = 1280
 
 OUTPUT_DIR = None
-RESUME_STATE = None #'vrp_output/SVRPTWn10m1_220920-2141/chkpt_ep50.pyth'
+RESUME_STATE = None #'vrp_output/SVRPTWn10m1_230925-0012/chkpt_ep100.pyth'
 CHECKPOINT_PERIOD = 5
 TRAIN_MODE = 'value'
+
+LOG_DIR = None
+NO_TENSORBOARD = False
 
 
 def write_config_file(args, output_file):
@@ -142,6 +145,10 @@ def parse_args(argv = None):
     group.add_argument("--checkpoint-period", "-c", type = int, default = CHECKPOINT_PERIOD)
     group.add_argument("--resume-state", type = str, default = RESUME_STATE)
     group.add_argument("--train-mode", type = str, choices=['policy', 'value'], default = TRAIN_MODE)
+
+    group = parser.add_argument_group("Logging")
+    group.add_argument("--no-tensorboard", action = 'store_true', default = NO_TENSORBOARD)
+    group.add_argument("--log-dir", type = str, default = LOG_DIR)
 
 
     args = parser.parse_args(argv)

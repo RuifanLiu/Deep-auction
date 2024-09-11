@@ -57,7 +57,7 @@ def main(args):
     args.output_dir = "cbba_output/{}n{}-{}m{}-{}_{}".format(
             args.problem_type.upper(),
             args.customers_range[0],args.customers_range[-1],
-            *args.vehicles_range,
+            args.vehicles_range[0], args.vehicles_range[-1],
             time.strftime('%y%m%d-%H%M')
             ) if args.output_dir is None else args.output_dir
     os.makedirs(args.output_dir, exist_ok = True)
@@ -66,13 +66,14 @@ def main(args):
 
     fpath = os.path.join(args.output_dir, "cbba_result.csv")
     with open(fpath, 'a') as f:
-        f.write( (' '.join("{: >16}" for _ in range(16)) + '\n').format(
+        f.write( (' '.join("{: >16}" for _ in range(20)) + '\n').format(
             "#TASK", "#AGT",
             "#DNN_EXP", "#DNN_ACT", 
             "MDP_EXP", "MDP_ACT",
             "#CBBA_EXP", "#CBBA_ACT", "#CBBA_ACT_DRL",
             "ROB_EXP", "#ROB_ACT", "#ROB_ACT_DRL",
-            "#DNN_TIME", "MDP_TIME", "CBBA_TIME", "ROB_TIME"
+            "#DNN_TIME", "MDP_TIME", "CBBA_TIME", "ROB_TIME",
+            "#DNN_ITER", "MDP_ITER", "CBBA_ITER", "ROB_ITER"
             ))
     
 
@@ -82,56 +83,65 @@ def main(args):
             data = torch.load(data_path)
             loader = DataLoader(data, batch_size = args.valid_batch_size)
             running_times = []
+            consensus_iters = []
 
             if args.dnn_cbba:
-                exp_reward, act_reward, run_time = [],[],[]
+                exp_reward, act_reward, run_time, cons_iter = [],[],[],[]
                 for batch in tqdm(loader):
                     CBBA_Class = CBBA(args, sto_Environment, batch, scorefun='Scoring_CalcScore_DNN', value_model=value_model)
-                    CBBA_Assignments, Total_Score, Runnning_time = CBBA_Class.CBBA_Main()
+                    CBBA_Assignments, Total_Score, Runnning_time, consensus_iter = CBBA_Class.CBBA_Main()
                     reward, delay = eval_routes_drl(args, sto_Environment, batch, policy_model, CBBA_Assignments)
                     exp_reward.append(Total_Score)
                     act_reward.append(reward.item())
                     run_time.append(Runnning_time)
+                    cons_iter.append(consensus_iter)
                 print("DNN-CBBA score: exp: {:.5f} +- {:.5f} act: {:.5f} +- {:.5f}"\
                     .format(np.mean(exp_reward), np.std(exp_reward), np.mean(act_reward), np.std(act_reward)))
                 dnn_cbba_stats = (np.mean(exp_reward), np.mean(act_reward))
                 running_times.append(np.mean(run_time))
+                consensus_iters.append(np.mean(cons_iter))
             else:
                 running_times.append(0)
+                consensus_iters.append(0)
                 dnn_cbba_stats = (0,0)
 
             if args.mdp_cbba: ### only for small problems of task number <= 10
-                exp_reward, act_reward, run_time = [],[],[]
+                exp_reward, act_reward, run_time, cons_iter = [],[],[],[]
                 for i, batch in enumerate(tqdm(loader)):
                     with open('./mdp_sample10_stw/s_cvrptw_n{}m{}/mdp{}.pkl'.format(n, m, i), 'rb') as f:
                         batch_mdp, pi = pickle.load(f)
                     CBBA_Class = CBBA(args, sto_Environment, batch, scorefun='Scoring_CalcScore_MDP', Value = pi.V, MDP=batch_mdp)
-                    CBBA_Assignments, Total_Score, Runnning_time = CBBA_Class.CBBA_Main()
+                    CBBA_Assignments, Total_Score, Runnning_time, consensus_iter = CBBA_Class.CBBA_Main()
                     reward, delay = eval_routes_mdp(args, sto_Environment, batch, batch_mdp, pi.policy, CBBA_Assignments)
                     exp_reward.append(Total_Score)
                     act_reward.append(reward.item())
                     run_time.append(Runnning_time)
-                    print(CBBA_Assignments)
-                    print('exp {} act {}'.format(Total_Score, reward.item()))
+                    cons_iter.append(consensus_iter)
+                    # print(CBBA_Assignments)
+                    # print('exp {} act {}'.format(Total_Score, reward.item()))
                 print("MDP-CBBA score: exp: {:.5f} +- {:.5f} act: {:.5f} +- {:.5f}"\
                     .format(np.mean(exp_reward), np.std(exp_reward), np.mean(act_reward), np.std(act_reward)))
                 mdp_cbba_stats = (np.mean(exp_reward), np.mean(act_reward))
                 running_times.append(np.mean(run_time))
+                consensus_iters.append(np.mean(cons_iter))
             else:
                 running_times.append(0)
                 mdp_cbba_stats = (0,0)
+                consensus_iters.append(0)
 
             if args.cbba:
                 exp_reward, act_reward, run_time, act_reward_drl = [],[],[],[]
+                cons_iter = []
                 for batch in tqdm(loader):
                     CBBA_Class = CBBA(args, det_Environment, batch, scorefun='Scoring_CalcScore_Original', value_model=value_model)
-                    CBBA_Assignments, Total_Score, Runnning_time = CBBA_Class.CBBA_Main()
+                    CBBA_Assignments, Total_Score, Runnning_time, consensus_iter = CBBA_Class.CBBA_Main()
                     reward, delay = eval_apriori_routes(args, sto_Environment, batch, CBBA_Assignments)
                     exp_reward.append(Total_Score)
                     act_reward.append(reward.item())
                     run_time.append(Runnning_time)
-                    print(CBBA_Assignments)
-                    print('exp {} act {}'.format(Total_Score, reward.item()))
+                    cons_iter.append(consensus_iter)
+                    # print(CBBA_Assignments)
+                    # print('exp {} act {}'.format(Total_Score, reward.item()))
                     reward, delay = eval_routes_drl(args, sto_Environment, batch, policy_model, CBBA_Assignments)
                     act_reward_drl.append(reward.item())
                 print("baseline CBBA score: exp: {:.5f} +- {:.5f} act: {:.5f} +- {:.5f} act+drl: {:.5f} +- {:.5f}"\
@@ -139,19 +149,23 @@ def main(args):
                     np.mean(act_reward_drl), np.std(act_reward_drl)))
                 cbba_stats = (np.mean(exp_reward), np.mean(act_reward), np.mean(act_reward_drl))
                 running_times.append(np.mean(run_time))
+                consensus_iters.append(np.mean(cons_iter))
             else:
                 running_times.append(0)
                 cbba_stats = (0,0,0)
+                consensus_iters.append(0)
 
             if args.robust_cbba: ### only for small problems of task number <= 10
                 exp_reward, act_reward, run_time, act_reward_drl = [],[],[],[]
+                cons_iter = []
                 for batch in tqdm(loader):
                     CBBA_Class = CBBA(args, det_Environment, batch, scorefun='Scoring_CalcScore_Robust', value_model=value_model)
-                    CBBA_Assignments, Total_Score, Runnning_time = CBBA_Class.CBBA_Main()
+                    CBBA_Assignments, Total_Score, Runnning_time, consensus_iter = CBBA_Class.CBBA_Main()
                     reward, delay = eval_apriori_routes(args, sto_Environment, batch, CBBA_Assignments)
                     exp_reward.append(Total_Score)
                     act_reward.append(reward.item())
                     run_time.append(Runnning_time)
+                    cons_iter.append(consensus_iter)
                     reward, delay = eval_routes_drl(args, sto_Environment, batch, policy_model, CBBA_Assignments)
                     act_reward_drl.append(reward.item())
                 print("robust CBBA score: exp: {:.5f} +- {:.5f} act: {:.5f} +- {:.5f} act+drl: {:.5f} +- {:.5f}"\
@@ -159,13 +173,15 @@ def main(args):
                     np.mean(act_reward_drl), np.std(act_reward_drl)))
                 robust_cbba_stats = (np.mean(exp_reward), np.mean(act_reward), np.mean(act_reward_drl))
                 running_times.append(np.mean(run_time))
+                consensus_iters.append(np.mean(cons_iter))
             else:
                 running_times.append(0)
                 robust_cbba_stats = (0, 0, 0)
+                consensus_iters.append(0)
 
             with open(fpath, 'a') as f:
-                f.write( ("{: >16d}" +"{:>16d}" + ' '.join("{: >16.5g}" for _ in range(14)) + '\n').format(
-                    n, m, *dnn_cbba_stats, *mdp_cbba_stats, *cbba_stats, *robust_cbba_stats, *running_times))
+                f.write( ("{: >16d}" +"{:>16d}" + ' '.join("{: >16.5g}" for _ in range(18)) + '\n').format(
+                    n, m, *dnn_cbba_stats, *mdp_cbba_stats, *cbba_stats, *robust_cbba_stats, *running_times, *consensus_iters))
     # export_cbba_rewards(args.output_dir, header, cbba_stats, dnn_cbba_stats)
     
 

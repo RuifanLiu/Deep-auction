@@ -17,9 +17,13 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR
 from torch.nn.utils import clip_grad_norm_
 
+from tensorboard_logger import Logger as TbLogger
+
 import time
 import os
 from itertools import chain
+import numpy as np
+import gc
 
 def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, device, ep, **kwargs):
     if args.train_mode == 'value':
@@ -28,13 +32,17 @@ def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, 
         policy_bl_wrapped_learner.learner.eval()
     bl_wrapped_learner.learner.train()
     loader = DataLoader(data, args.batch_size, True)
+
+    if not args.no_tensorboard:
+        tb_logger = kwargs.get('tb_logger')
+    step = ep * args.iter_count
     
-    ep_loss = 0
-    ep_bl_loss = 0
-    ep_prob = 0
-    ep_val = 0
-    ep_bl = 0
-    ep_norm = 0
+    ep_loss = []
+    ep_bl_loss = []
+    ep_prob = []
+    ep_val = []
+    ep_bl = []
+    ep_norm = []
     with tqdm(loader, desc = "Ep.#{: >3d}/{: <3d}".format(ep+1, args.epoch_count)) as progress:
         for minibatch in progress:
             if data.cust_mask is None:
@@ -44,7 +52,7 @@ def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, 
 
             dyna = Environment(data, vehs, custs, mask, *env_params)
             if args.train_mode == 'policy':
-                actions, logps, rewards, bl_vals = bl_wrapped_learner(dyna)
+                _, logps, rewards, bl_vals = bl_wrapped_learner(dyna)
                 loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
                 prob = torch.stack(logps).sum(0).exp().mean()
                 val = rewards.mean()            
@@ -58,7 +66,7 @@ def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, 
                 progress.set_postfix_str("l={:.4g} vl={:9.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
                     loss, bl_loss, prob, val, bl, grad_norm))
             elif args.train_mode == 'value':
-                actions, logps, rewards, _ = policy_bl_wrapped_learner(dyna, greedy=True)
+                with torch.no_grad(): _, logps, rewards, _ = policy_bl_wrapped_learner(dyna, greedy=True)
                 _, _, _, bl_vals = bl_wrapped_learner(dyna)
                 loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
                 prob = torch.stack(logps).sum(0).exp().mean()
@@ -72,15 +80,35 @@ def train_epoch(args, data, Environment, env_params, bl_wrapped_learner, optim, 
                 optim.step()
                 progress.set_postfix_str("l={:.4g} vl={:9.4g} p={:9.4g} val={:6.4g} bl={:6.4g} |g|={:.4g}".format(
                     loss, bl_loss, prob, val, bl, grad_norm))
+                
+            if not args.no_tensorboard:
+                step += 1
+                log_values(tb_logger, step, loss, bl_loss, prob, val, bl, grad_norm)
 
-            ep_loss += loss.item()
-            ep_bl_loss += bl_loss.item()
-            ep_prob += prob.item()
-            ep_val += val.item()
-            ep_bl += bl.item()
-            ep_norm += grad_norm
+            ep_loss.append(loss)
+            ep_bl_loss.append(bl_loss)
+            ep_prob.append(prob)
+            ep_val.append(val)
+            ep_bl.append(bl)
+            ep_norm.append(grad_norm)
 
-    return tuple(stat / args.iter_count for stat in (ep_loss, ep_bl_loss, ep_prob, ep_val, ep_bl, ep_norm))
+            # del minibatch, vehs, custs, mask
+            # del dyna, logps, rewards, bl_vals
+            # del loss, bl_loss, prob, val, bl, grad_norm, 
+
+            # print(torch.cuda.memory_summary('cuda:3'))
+            # torch.cuda.empty_cache()
+            # gc.collect()
+
+        ep_loss = torch.stack(ep_loss)
+        ep_bl_loss = torch.stack(ep_bl_loss)
+        ep_prob = torch.stack(ep_prob)
+        ep_val = torch.stack(ep_val)
+        ep_bl = torch.stack(ep_bl)
+        ep_norm = torch.stack(ep_norm)
+
+    return ep_loss.mean().item(), ep_bl_loss.mean().item(), ep_prob.mean().item(), ep_val.mean().item(), ep_bl.mean().item(), ep_norm.mean().item(),\
+            ep_loss.std().item(), ep_bl_loss.std().item(), ep_val.std().item(), ep_bl.std().item()
 
 
 def test_epoch(args, test_env, learner, bl_wrapped_learner, ref_costs, **kwargs):
@@ -91,8 +119,8 @@ def test_epoch(args, test_env, learner, bl_wrapped_learner, ref_costs, **kwargs)
 
     with torch.no_grad():
         if args.problem_type[0] == "s":
-            losses = 0
-            bl_losses = 0
+            losses = []
+            bl_losses = []
             costs = []
             for _ in range(100):
                 if args.train_mode == 'policy':
@@ -103,18 +131,19 @@ def test_epoch(args, test_env, learner, bl_wrapped_learner, ref_costs, **kwargs)
                     _, _, _, bl_vals = bl_wrapped_learner(test_env)
                     loss, bl_loss = reinforce_loss(logps, rewards, bl_vals)
                 costs.append( rewards.mean() )
-                losses += loss.item()
-                bl_losses += bl_loss.item()
+                losses.append(loss)
+                bl_losses.append(bl_loss)
             costs = torch.stack(costs)
-            losses = losses / 100
-            bl_losses = bl_losses / 100
+            losses = torch.stack(losses)
+            bl_losses = torch.stack(bl_losses)
         else:
             _, _, rs = learner(test_env)
             costs = -torch.stack(rs).sum(dim = 0).squeeze(-1)
 
     gap = (costs.to(ref_costs.device) / ref_costs - 1).mean() if ref_costs is not None else 0
     print("Cost on test dataset: {:5.2f} +- {:5.2f} ({:.2%})".format(costs.mean(), costs.std(), gap))
-    return costs.mean().item(), losses, bl_losses, gap
+    return costs.mean().item(), losses.mean().item(), bl_losses.mean().item(), gap, \
+        losses.std().item(), bl_losses.std().item()
 
 def main(args):
     if args.verbose:
@@ -285,6 +314,22 @@ def main(args):
         start_ep = 0
     else:
         start_ep = load_checkpoint(args, learner, baseline=None, lr_sched=lr_sched)
+    
+    # TENSORBOARD LOGGING
+    verbose_print("Creating log dir...",
+    end = " ", flush = True)
+    args.log_dir = "log/{}n{}m{}_{}".format(
+            args.problem_type.upper(),
+            args.customers_count,
+            args.vehicles_count,
+            time.strftime("%y%m%d-%H%M")
+            ) if args.log_dir is None else args.log_dir
+    os.makedirs(args.output_dir, exist_ok = True)
+
+    tb_logger = None    
+    if not args.no_tensorboard:
+        tb_logger = TbLogger(args.log_dir)
+        verbose_print("'{}' created.".format(args.log_dir))
 
     # SEPARATE POLICY MODEL FOR VALUE TRAINING MODE
     if args.train_mode == 'value':
@@ -326,11 +371,12 @@ def main(args):
     try:
         for ep in range(start_ep, args.epoch_count):
             if args.train_mode == 'policy':
-                train_stats.append( train_epoch(args, train_data, Environment, env_params, baseline, optim, dev, ep) )
+                train_stats.append( train_epoch(args, train_data, Environment, env_params, baseline, optim, dev, ep,
+                                                tb_logger=tb_logger) )
                 test_stats.append( test_epoch(args, test_env, learner, baseline, ref_costs=None) )
             elif args.train_mode == 'value':
                 train_stats.append( train_epoch(args, train_data, Environment, env_params, baseline, optim, dev, ep,\
-                    policy_baseline = policy_baseline) )
+                    policy_baseline = policy_baseline, tb_logger=tb_logger) )
                 test_stats.append( test_epoch(args, test_env, learner, baseline, ref_costs=None, policy_baseline = policy_baseline) )
             else:
                 raise ValueError(f'do not support training model: {args.train_mode}')

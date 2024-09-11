@@ -21,15 +21,18 @@ def routes_to_string(routes):
 def export_train_test_stats(args, start_ep, train_stats, test_stats):
     fpath = os.path.join(args.output_dir, "loss_gap.csv")
     with open(fpath, 'a') as f:
-        f.write( (' '.join("{: >16}" for _ in range(11)) + '\n').format(
-            "#EP", "#LOSS", '#BL_LOSS', "#PROB", "#VAL", "#BL", "#NORM", "#TEST_MU", "#TEST_LOSS", "TEST_BL_LOSS", "#TEST_GAP"
+        f.write( (' '.join("{: >16}" for _ in range(17)) + '\n').format(
+            "#EP", "#LOSS", '#BL_LOSS', "#PROB", "#VAL", "#BL", "#NORM", 
+            "#LOSS_STD", '#BL_LOSS_STD', '#VAL_STD', '#BL_STD',
+            "#TEST_MU", "#TEST_LOSS", "TEST_BL_LOSS", "#TEST_GAP",
+            '#TEST_LOSS_STD', '#TEST_BL_LOSS_STD'
             ))
         for ep, (tr,te) in enumerate( zip_longest(train_stats, test_stats, fillvalue=float('nan')), start = start_ep):
             if test_stats:
-                f.write( ("{: >16d}" + ' '.join("{: >16.5g}" for _ in range(10)) + '\n').format(
+                f.write( ("{: >16d}" + ' '.join("{: >16.5g}" for _ in range(16)) + '\n').format(
                     ep, *tr, *te))
             else:
-                f.write( ("{: >16d}" + ' '.join("{: >16.5g}" for _ in range(5)) + '\n').format(
+                f.write( ("{: >16d}" + ' '.join("{: >16.5g}" for _ in range(10)) + '\n').format(
                     ep, *tr))
 
 
@@ -59,3 +62,14 @@ def load_old_weights(learner, state_dict):
     learner.fleet_attention._inv_sqrt_d = learner.fleet_attention.key_size_per_head**0.5
     learner.veh_attention._inv_sqrt_d = learner.veh_attention.key_size_per_head**0.5
 
+def log_values(tb_logger, step, loss, bl_loss, prob, val, bl, grad_norm):
+
+    tb_logger.log_value('total_loss', loss.item(), step)
+
+    tb_logger.log_value('critic_loss', bl_loss.item(), step)
+    tb_logger.log_value('prob', prob.mean().item(), step)
+
+    tb_logger.log_value('reward', val.item(), step)
+    tb_logger.log_value('baseline_value', bl.item(), step)
+
+    tb_logger.log_value('grad_norm', grad_norm.item(), step)

@@ -2,7 +2,7 @@ from problems import *
 import torch
 import os
 
-BATCH_SIZE = 10
+BATCH_SIZE = 100
 SEED = 231034871112
 LATE_PS = [0.05, 0.1, 0.2, 0.3, 0.5]
 ROLLOUTS = 100
@@ -32,10 +32,9 @@ for n,m in ((10,2), (20,4), (50,10)):
 '''
 gen_params = [(100,100), (1,1), None, None, (0,101), (0,0), (1,1), 480, (10,31), (0.25,0.5,0.75,1.0), (30,91)]
 # S-CVRPTW Data (more tw)
-for n in range(5,6):
-        m = 2
-    # for m in range(4,5,1):
-        out_dir = "data_sample10_stw_1/s_cvrptw_n{}m{}".format(n,m)
+for n in range(100,101):
+    for m in range(20,21):
+        out_dir = "data_sample{}_stw/s_cvrptw_n{}m{}".format(BATCH_SIZE,n,m)
         os.makedirs(out_dir, exist_ok = True)
         data = VRPTW_Dataset.generate(BATCH_SIZE, n, m, *gen_params)
         data.normalize()

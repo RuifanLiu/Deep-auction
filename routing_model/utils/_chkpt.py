@@ -15,7 +15,7 @@ def save_checkpoint(args, ep, learner, optim, baseline = None, lr_sched = None):
 
 
 def load_checkpoint(args, learner, baseline = None, lr_sched = None, optim = None):
-    checkpoint = torch.load(args.resume_state)
+    checkpoint = torch.load(args.resume_state, map_location={'cuda:1': 'cuda:0'})
     learner.load_state_dict(checkpoint["model"])
     if optim is not None:
         optim.load_state_dict(checkpoint["optim"])

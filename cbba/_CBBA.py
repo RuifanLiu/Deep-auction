@@ -78,8 +78,8 @@ class CBBA():
             elif(T-lastTime > 2*self.CBBA_Params_N):
                 print('Algorithm did not converge due to communication trouble');
                 doneFlag = 1
-            elif T>50:
-                print('CBBA Loop exceed 50');
+            elif T>self.CBBA_Params_M:
+                print('CBBA Loop exceed {}'.format(self.CBBA_Params_M));
                 self.CBBA_Communicate(t,T)
                 for n in range(self.CBBA_Params_N):
                     self.CBBA_BundleRemove(n)
@@ -118,7 +118,10 @@ class CBBA():
         
         Assignment_result = [self.CBBA_Data[n]['path'] for n in range(self.CBBA_Params_N)]
         running_time = time.perf_counter() - t_start
-        return Assignment_result, Total_Score, running_time    
+        
+        # if T = the consensus iteration loop?
+        consensus_iter = T
+        return Assignment_result, Total_Score, running_time, consensus_iter
     
     
         

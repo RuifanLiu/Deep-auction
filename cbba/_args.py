@@ -8,20 +8,25 @@ NO_CUDA = False
 SEED = None
 
 PROBLEM = "svrptw"
-CUST_RANGE = (10, 20, 50) 
-VEH_RANGE = (2, 4, 10)
+CUST_RANGE = [100] 
+VEH_RANGE = [20]
 VALID_DATASET = 'data_sample10_stw/'
 ITERATION = 10
 
+# stochastic models with speed var 0.2
 VALUE_MODEL = 'vrp_output/SVRPTWn10m1_221011-2044/chkpt_ep150.pyth'
 DRL_MODEL = 'vrp_output/SVRPTWn10m1_221011-1625/chkpt_ep100.pyth'
+# deterministic models
+# VALUE_MODEL = 'vrp_output/SVRPTWn10m1_221016-1509/chkpt_ep150.pyth'
+# DRL_MODEL = 'vrp_output/SVRPTWn10m1_221015-1508/chkpt_ep100.pyth'
+
 
 PEND_COST = 1
 PEND_GROWTH = None
 # LATE_DISCOUNT = 0.9
 LATE_COST = 4
 LATE_GROWTH = None
-SPEED_VAR = 0.2
+SPEED_VAR = 0.0
 LATE_PROB = 0.0
 SLOW_DOWN = 0.2
 LATE_VAR = 0.2
@@ -71,9 +76,9 @@ def parse_args(argv = None):
     group.add_argument("--output-dir", "-o", type = str, default = OUTPUT_DIR)
 
     group = parser.add_argument_group("Methods")
-    parser.add_argument("--dnn-cbba", action = "store_true")
+    parser.add_argument("--dnn-cbba", action = "store_false")
     parser.add_argument("--mdp-cbba", action = "store_true")
-    parser.add_argument("--cbba", action = "store_true")
+    parser.add_argument("--cbba", action = "store_false")
     parser.add_argument("--robust_cbba", action = "store_true")
 
     args = parser.parse_args(argv)
